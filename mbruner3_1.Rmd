@@ -50,7 +50,7 @@ ggplot(data = college, aes(x = Applications, y = Acceptance, col = Private, shap
 ```
 
 # Single Variable Visualization
-ggplot(data = college, aes(x = Private)) + geom_histogram(stat = "Count", fill = "light blue", col = "skyblue")
+A bargraph of Private school data in College data set.
 
 ```{r}
 ggplot(data = college, aes(x = Private)) + geom_histogram(stat = "Count", fill = "light blue", col = "skyblue")

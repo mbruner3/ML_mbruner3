@@ -2,7 +2,8 @@
 title: "mbruner3_1.r"
 author: "Mark Bruner"
 date: "9/11/2020"
-output: 
+output:
+  pdf_document: default
   html_document: default
 ---
 ```{r setup, include=FALSE}

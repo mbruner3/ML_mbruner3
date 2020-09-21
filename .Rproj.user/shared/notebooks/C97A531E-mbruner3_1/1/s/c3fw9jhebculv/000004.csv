@@ -1,0 +1,5 @@
+"0","library(ggplot2)"
+"0","Applications = college$Apps"
+"0","Acceptance = college$Accept"
+"0","Private = college$Private"
+"0","ggplot(data = college, aes(x = Applications, y = Acceptance, col = Private, shape = Private)) + geom_point()"

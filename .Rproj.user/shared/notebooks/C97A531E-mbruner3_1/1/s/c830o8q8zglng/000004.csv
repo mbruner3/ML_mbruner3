@@ -1,0 +1,5 @@
+"0","library(readr)"
+"0","library(dplyr)"
+"0","college <- read_csv(""college.csv"", col_types = ""cciiiiiiiiiiiiiiiii"")"
+"0","college <- rename(college, ""College Name"" = ""X1"")"
+"0","college "

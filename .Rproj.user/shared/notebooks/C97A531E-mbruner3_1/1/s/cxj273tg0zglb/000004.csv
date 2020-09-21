@@ -1,0 +1,1 @@
+"0","ggplot(data = college, aes(x = Private)) + geom_histogram(stat = ""Count"", fill = ""light blue"", col = ""skyblue"")"

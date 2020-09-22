@@ -1,0 +1,42 @@
+---
+title: "mbruner3_2"
+author: "Mark Bruner"
+date: "9/22/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# loaded the libraries needed for this assignment.
+```{r}
+library(ggplot2)
+library(caret)
+library(ISLR)
+library(readr)
+```
+#loading dataset.
+```{r}
+UniBank <- read_csv("UniversalBank.csv")
+```
+```{r}
+head(UniBank)
+summary(UniBank)
+```
+
+```{r}
+norm_unibank <- preProcess(UniBank, method = c("range"))
+default_unibank <- predict(norm_unibank, UniBank)
+summary(default_unibank)
+```
+
+
+
+```{r}
+Train_Index=createDataPartition(UniBank$,p=0.75, list=FALSE)
+Train_Data = Carseats[Train_Index,] # create the training data; we include all columns; note the index is row, column
+Test_Data = Carseats[-Train_Index,] # create the test set
+summary(Train_Data$Sales)
+summary(Test_Data$Sales)
+```
+

@@ -74,7 +74,7 @@ accuracyTest.df <- data.frame(k = seq(1, 14, 1), accuracy = rep(0, 14))
 ```
 
 # Hypertuning using Validation
-Used an accuracy test for k{i} = 1:14 and a confustion matrix.
+Used an accuracy test for k{i} = 1:14 and a confusion matrix.
 ```{r}
 for(i in 1:14) {
   knn.pred <- knn(train = Train_norm[, -7], test = Valid_norm[, -7], 
@@ -87,22 +87,19 @@ accuracyTest.df
 k =  5 is the value that provide the best performance.
 
 # Prediction
-Combined test and training sets.
+Normalized all of Universal Bank Dataset.
 ```{r}
 normalized_values <- preProcess(unibank.df[, -7], method = c("center", "scale"))
 
 unibank.df[, -7] <- predict(normalized_values, unibank.df[, -7])
 ```
 
-
+#Prediction of Customer
 ```{r}
 knn.pred.new <- knn(unibank.df[, -7], customer.df, cl = unibank.df[, 7], k = 5, prob = TRUE)
 knn.attr <- attributes(knn.pred.new)
 knn.attr[1]
 knn.attr[3]
 ```
-
-```{r}
-
-```
+If I am interpreting these results correctly then I would have to say that the customer would accept the personal loan.
 

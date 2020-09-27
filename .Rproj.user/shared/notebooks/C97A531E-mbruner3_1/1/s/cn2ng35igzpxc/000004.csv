@@ -1,8 +1,0 @@
-"0","library(tidyverse)"
-"0","private <- table(college$Private)"
-"0","private_df <- as.data.frame(private)"
-"0","private_df <- rename(private_df, ""Private"" = ""Var1"")"
-"0","private_percent <- private_df$Freq/sum(private_df$Freq)"
-"0","private_df_percent <- add_column(private_df, private_percent)"
-"0","private_df_percent <- rename(private_df_percent, ""Percent"" = ""private_percent"")"
-"0","private_df_percent"

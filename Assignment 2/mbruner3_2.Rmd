@@ -8,35 +8,101 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-# loaded the libraries needed for this assignment.
+# Libraries needed for this assignment.
 ```{r}
 library(ggplot2)
 library(caret)
 library(ISLR)
 library(readr)
 ```
-#loading dataset.
+# Imported dataset.
 ```{r}
-UniBank <- read_csv("UniversalBank.csv")
+unibank.df <- read_csv("UniversalBank.csv")
 ```
+# Cleaning dataset. 
+Removed Zip Code and ID columns. Also, made dummy categories for Education and removed the Education column. Lastly, converted dataset into a data frame.
 ```{r}
-head(UniBank)
-summary(UniBank)
+unibank.df <- unibank.df[, -1]
+unibank.df <- unibank.df[, -4]
+unibank.df$Education_1 <- ifelse(unibank.df$Education == '1', 1, 0)
+unibank.df$Education_2 <- ifelse(unibank.df$Education == '2', 1, 0)
+unibank.df$Education_3 <- ifelse(unibank.df$Education == '3', 1, 0)
+unibank.df <- unibank.df[, -6]
+unibank.df <- data.frame(unibank.df)
+head(unibank.df)
+```
+# Partitions
+Created partitions for the dataset into Train & Validation set.
+```{r}
+set.seed(123)
+Train_index <- createDataPartition(unibank.df$Personal.Loan, p = .6, list = FALSE)
+Train_data = unibank.df[Train_index, ]
+Valid_data = unibank.df[-Train_index, ]
+```
+
+# Customer Data Frame.
+Created a data frame for the customer.
+```{r}
+customer.df <- data.frame("Age" = as.integer(40), "Experience" = as.integer(10), Income = as.integer(84), Family = as.integer(2), CCAvg = as.integer(2), Mortgage = as.integer(0), Securities.Account = as.integer(0), CD.Account = as.integer(0), Online = as.integer(1), CreditCard = as.integer(1), Education_1 = as.integer(0), Education_2 = as.integer(1), Education_3 = as.integer(0))
+```
+
+# Copy original data
+```{r}
+Train_norm <- Train_data
+Valid_norm <- Valid_data
+```
+
+# Normalization
+Used the training data except for the personal loan column to normalize the rest of the train, test, and validation set.
+```{r}
+normalized_values <- preProcess(Train_data[, -7], method = "center", "scale")
+Train_norm[, -7] <- predict(normalized_values, Train_data[, -7])
+Valid_norm[, -7] <- predict(normalized_values, Valid_data[, -7])
+```
+
+# kNN Modeling
+```{r}
+library(FNN)
+nn <- knn(train = Train_norm[, -7], test = Valid_norm[, -7], cl = Train_norm[, 7], k = 1, prob = TRUE)
+
+valid_levels <- factor(Valid_norm[, 7], levels = c("0", "1"))
+```
+
+#Created Accuracy Data Frame to hold "K" Values.
+```{r}
+accuracyTest.df <- data.frame(k = seq(1, 14, 1), accuracy = rep(0, 14))
+```
+
+# Hypertuning using Validation
+Used an accuracy test for k{i} = 1:14 and a confustion matrix.
+```{r}
+for(i in 1:14) {
+  knn.pred <- knn(train = Train_norm[, -7], test = Valid_norm[, -7], 
+                  cl = Train_norm[, 7], k = i, prob = TRUE)
+  accuracyTest.df[i, 2] <- confusionMatrix(knn.pred, valid_levels)$overall[1] 
+} 
+confusionMatrix(knn.pred, valid_levels)
+accuracyTest.df
+```
+k =  5 is the value that provide the best performance.
+
+# Prediction
+Combined test and training sets.
+```{r}
+normalized_values <- preProcess(unibank.df[, -7], method = c("center", "scale"))
+
+unibank.df[, -7] <- predict(normalized_values, unibank.df[, -7])
+```
+
+
+```{r}
+knn.pred.new <- knn(unibank.df[, -7], customer.df, cl = unibank.df[, 7], k = 5, prob = TRUE)
+knn.attr <- attributes(knn.pred.new)
+knn.attr[1]
+knn.attr[3]
 ```
 
 ```{r}
-norm_unibank <- preProcess(UniBank, method = c("range"))
-default_unibank <- predict(norm_unibank, UniBank)
-summary(default_unibank)
-```
 
-
-
-```{r}
-Train_Index=createDataPartition(UniBank$,p=0.75, list=FALSE)
-Train_Data = Carseats[Train_Index,] # create the training data; we include all columns; note the index is row, column
-Test_Data = Carseats[-Train_Index,] # create the test set
-summary(Train_Data$Sales)
-summary(Test_Data$Sales)
 ```
 

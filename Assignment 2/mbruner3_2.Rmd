@@ -5,101 +5,266 @@ date: "9/22/2020"
 output: pdf_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 # Libraries needed for this assignment.
 ```{r}
 library(ggplot2)
 library(caret)
 library(ISLR)
 library(readr)
+library(dummies)
 ```
 # Imported dataset.
 ```{r}
-unibank.df <- read_csv("UniversalBank.csv")
+unibank <- read_csv("UniversalBank.csv", col_types = "iiiiiidiifffff")
+head(unibank)
+
 ```
 # Cleaning dataset. 
 Removed Zip Code and ID columns. Also, made dummy categories for Education and removed the Education column. Lastly, converted dataset into a data frame.
 ```{r}
-unibank.df <- unibank.df[, -1]
-unibank.df <- unibank.df[, -4]
-unibank.df$Education_1 <- ifelse(unibank.df$Education == '1', 1, 0)
-unibank.df$Education_2 <- ifelse(unibank.df$Education == '2', 1, 0)
-unibank.df$Education_3 <- ifelse(unibank.df$Education == '3', 1, 0)
-unibank.df <- unibank.df[, -6]
-unibank.df <- data.frame(unibank.df)
-head(unibank.df)
+library(fastDummies)
+unibank <- dummy_cols(unibank, select_columns = 'Education')
+unibank <- unibank[, c(-1, -5, -8)]
+unibank_df <- data.frame(unibank)
+head(unibank_df)
 ```
 # Partitions
 Created partitions for the dataset into Train & Validation set.
 ```{r}
-set.seed(123)
-Train_index <- createDataPartition(unibank.df$Personal.Loan, p = .6, list = FALSE)
-Train_data = unibank.df[Train_index, ]
-Valid_data = unibank.df[-Train_index, ]
+set.seed(87)
+train_index <- createDataPartition(unibank_df$Personal.Loan, p = .6, list = FALSE)
+train_data <- unibank_df[train_index, ]
+valid_data <- unibank_df[-train_index, ]
 ```
 
 # Customer Data Frame.
 Created a data frame for the customer.
 ```{r}
-customer.df <- data.frame("Age" = as.integer(40), "Experience" = as.integer(10), Income = as.integer(84), Family = as.integer(2), CCAvg = as.integer(2), Mortgage = as.integer(0), Securities.Account = as.integer(0), CD.Account = as.integer(0), Online = as.integer(1), CreditCard = as.integer(1), Education_1 = as.integer(0), Education_2 = as.integer(1), Education_3 = as.integer(0))
+customer_df <- data.frame(
+  "Age" = as.integer(40), 
+  "Experience" = as.integer(10), 
+  "Income" = as.integer(84), 
+  "Family" = as.integer(2), 
+  "CCAvg" = as.double(2), 
+  "Mortgage" = as.integer(0), 
+  "Personal.Loan" = c(0, 1),
+  "Securities.Account" = as.factor(0), 
+  "CD.Account" = as.factor(0), 
+  "Online" = as.factor(1), 
+  "CreditCard" = as.factor(1), 
+  "Education_1" = as.factor(0), 
+  "Education_2" = as.factor(1), 
+  "Education_3" = as.factor(0))
+head(customer_df)
 ```
 
 # Copy original data
 ```{r}
-Train_norm <- Train_data
-Valid_norm <- Valid_data
+train_norm <- train_data
+valid_norm <- valid_data
+unibank_norm <- unibank_df
 ```
 
 # Normalization
 Used the training data except for the personal loan column to normalize the rest of the train, test, and validation set.
 ```{r}
-normalized_values <- preProcess(Train_data[, -7], method = "center", "scale")
-Train_norm[, -7] <- predict(normalized_values, Train_data[, -7])
-Valid_norm[, -7] <- predict(normalized_values, Valid_data[, -7])
+norm_values <- preProcess(train_data[, c(1:6)], method = "center", "scale")
+
+train_norm[, c(1:6)] <- predict(norm_values, train_data[,c(1:6)])
+valid_norm[, c(1:6)] <- predict(norm_values, valid_data[, c(1:6)])
 ```
 
 # kNN Modeling
 ```{r}
 library(FNN)
-nn <- knn(train = Train_norm[, -7], test = Valid_norm[, -7], cl = Train_norm[, 7], k = 1, prob = TRUE)
+knn_valid <- knn(train = train_norm[, c(1:6)], test = valid_norm[, c(1:6)], cl = train_norm[, 7], k = 1)
 
-valid_levels <- factor(Valid_norm[, 7], levels = c("0", "1"))
 ```
 
-#Created Accuracy Data Frame to hold "K" Values.
+# Prediction
+Combined valid and training.
 ```{r}
-accuracyTest.df <- data.frame(k = seq(1, 14, 1), accuracy = rep(0, 14))
+norm_values <- preProcess(train_data[, c(1:6)], method = c("center", "scale"))
+
+
+unibank_norm[, c(1:6)] <- predict(norm_values, unibank_df[, c(1:6)])
+customer_df[, c(1:6)] <- predict(norm_values, customer_df[, c(1:6)])
+
+customer_norm_predictors <- customer_df[, c(1:6)]
+unibank_predictors <- unibank_norm[, c(1:6)]
+
+unibank_norm_labels <- unibank_norm[, 7]
+customer_test_labels <- customer_df[, 7]
+```
+
+#Prediction of Customer
+```{r}
+predicted_customer_labels <- knn(
+                        unibank_predictors, 
+                        customer_norm_predictors, 
+                        cl = unibank_norm_labels, 
+                    k = 1)
+head(predicted_customer_labels)
+```
+# CrossTable 
+```{r}
+library(gmodels)
+CrossTable(x = customer_test_labels, y = predicted_customer_labels, prop.chisq = FALSE)
+```
+The prediction of "0" above means that the customer would not accept the personal loan.
+
+
+
+
+# Created Accuracy Data Frame to hold "K" Values.
+```{r}
+accuracyTest_df <- data.frame(k = seq(1, 14, 1), accuracy = rep(0, 14))
 ```
 
 # Hypertuning using Validation
 Used an accuracy test for k{i} = 1:14 and a confusion matrix.
 ```{r}
+library(caret)
 for(i in 1:14) {
-  knn.pred <- knn(train = Train_norm[, -7], test = Valid_norm[, -7], 
-                  cl = Train_norm[, 7], k = i, prob = TRUE)
-  accuracyTest.df[i, 2] <- confusionMatrix(knn.pred, valid_levels)$overall[1] 
+  knn_pred <- knn(
+                  train_norm[, c(1:6)], 
+                  valid_norm[, c(1:6)], 
+                  cl = train_norm[, 7], 
+            k = i)
+  accuracyTest_df[i, 2] <- confusionMatrix(knn_pred, 
+                                           valid_norm[, 7])$overall[1] 
 } 
-confusionMatrix(knn.pred, valid_levels)
-accuracyTest.df
-```
-k =  5 is the value that provide the best performance.
 
-# Prediction
-Normalized all of Universal Bank Dataset.
+accuracyTest_df
+
+library(ggplot2)
+ggplot(accuracyTest_df,aes(k,accuracy)) + 
+      geom_line(colour = "light blue") +  
+      geom_point(colour = "blue", size = 2) + 
+      scale_x_continuous(breaks=1:14)+ 
+      theme_bw() +
+      ggtitle("Accuracy Test") +
+        theme(plot.title = element_text(hjust = 0.5, face = "bold")) +
+      xlab("kNN Value") +
+      ylab('Accuracy')
+```
+# k =  12 is the value that provide the best performance.
+
+# Confusion Matrix and optimal k for Validation
 ```{r}
-normalized_values <- preProcess(unibank.df[, -7], method = c("center", "scale"))
+knn_valid_optimal <- knn(
+                  train_norm[, c(1:6)], 
+                  test = valid_norm[, c(1:6)], 
+                  cl = train_norm[, 7], 
+          k = 12)
+confusionMatrix(valid_norm[, 7], knn_valid, positive = "1")
+confusionMatrix(valid_norm[, 7], knn_valid_optimal, positive = "1")
 
-unibank.df[, -7] <- predict(normalized_values, unibank.df[, -7])
 ```
+There are two types of errors in the confusion matrix which are: Type 1 and Type 2. The first type of error is a false positive. What this means for this problem is that the model predicted a person as accepting a personal loan but in reality (according to validation data) they rejected it. According to the confusion matrix above, the model predicted 58 (second confusion matrix) people as accepting a personal loan but in reality they rejected it.
 
-#Prediction of Customer
+The second type of error is a false negative. What this means is that the model predicted a person as not accepting the personal loan but in reality they did accepted it. According to the confusion matrix above, the model said that 138 people would reject the personal loan but in reality (according to the validation set) they accepted it.
+
+The precision of this model is 96.8% (second confusion matrix), meaning that it correctly predicts a person of accepting a loan 96.8% of the time, which I believe is good. Compared to the kNN model where k = 1 (top confusion matrix) is used, this model predicts correctly predicted 33 more people.
+
+However, the specificity (predicted rejection of loan/actual rejection of loan) is higher in the k = 1 model compared to the k = 12 model. The k =1 model predicted 22 more people who would reject the loan correctly compared to the k = 12 model.
+
+In conclusion, in this specific situation I would think the bank would prefer maximizing the precision of the model over the other metrics. I make this assumption due to believing that the bank would prefer maximizing getting more personal loans from customers (i.e. the models ability to correctly identify those would accept an offer of a personal loan).
+
+# Prediction using optimal k.
 ```{r}
-knn.pred.new <- knn(unibank.df[, -7], customer.df, cl = unibank.df[, 7], k = 5, prob = TRUE)
-knn.attr <- attributes(knn.pred.new)
-knn.attr[1]
-knn.attr[3]
+predicted_customer_labels <- knn(
+                        unibank_predictors, 
+                        customer_norm_predictors, 
+                        cl = unibank_norm_labels, 
+                    k = 12)
+head(predicted_customer_labels)
 ```
-If I am interpreting these results correctly then I would have to say that the customer would accept the personal loan.
+# CrossTable 
+```{r}
+library(gmodels)
+CrossTable(x = customer_test_labels, y = predicted_customer_labels, prop.chisq = FALSE)
+```
+# The customer would still not accept the loan based on the higher k-value.
+
+
+
+# Partitions with training, test, and validation
+Created partitions for the dataset into Train & Validation set.
+```{r}
+set.seed(15)
+test_index <- createDataPartition(unibank_df$Personal.Loan, p = .2, list = FALSE)
+test_data <- unibank_df[test_index, ]
+train_valid_data <- unibank_df[-test_index, ]
+
+train_index <- createDataPartition(train_valid_data$Personal.Loan, p = .625, list = FALSE)
+train_data <- train_valid_data[train_index, ]
+valid_data <- train_valid_data[-train_index, ]
+```
+
+# Copy original data
+```{r}
+train_norm <- train_data
+valid_norm <- valid_data
+train_valid_norm <- train_valid_data
+test_norm <- test_data
+```
+
+# Normalization
+Used the training data except for the personal loan column to normalize the rest of the train, test, and validation set.
+```{r}
+norm_values <- preProcess(train_data[, c(1:6)], method = "center", "scale")
+
+train_norm[, c(1:6)] <- predict(norm_values, train_data[, c(1:6)])
+valid_norm[, c(1:6)] <- predict(norm_values, valid_data[, c(1:6)])
+train_valid_norm[, c(1:6)] <- predict(norm_values, train_valid_norm[, c(1:6)])
+
+train_norm_predictors <- train_norm[, c(1:6)]
+valid_norm_predictors <- valid_norm[, c(1:6)]
+```
+
+# kNN Modeling
+```{r}
+library(FNN)
+knn_valid <- knn(
+                train_norm_predictors, 
+                valid_norm_predictors, 
+                cl = train_norm[, 7], 
+        k = 12)
+confusionMatrix(knn_valid, valid_norm[, 7], positive = "1")
+```
+
+# Combining sets.
+Combined valid and training.
+```{r}
+norm_values <- preProcess(train_valid_norm[, c(1:6)], method = c("center", "scale"))
+
+train_valid_norm[, c(1:6)] <- predict(norm_values, train_valid_data[, c(1:6)])
+test_norm[, c(1:6)] <- predict(norm_values, test_data[, c(1:6)])
+
+
+train_valid_labels <- unibank_norm[, 7]
+test_labels <- customer_df[, 7]
+```
+
+# Prediction of test set
+```{r}
+predicted_test_labels <- knn(
+                        unibank_predictors, 
+                        test_norm[, c(1:6)], 
+                        cl = train_valid_labels, 
+                    k = 12)
+head(predicted_test_labels)
+```
+# Confusion Matrix for test set.
+```{r}
+confusionMatrix(test_norm[, 7], predicted_test_labels, positive = "1")
+```
+
+# Comparing Confusion Matrices.
+The accuracy for the train/validation was significantly higher than the test confusion matrix by about 22%. A reason for this may be due to the fact that we did not hypertune the model to make sure we had the optimal k for the model. We used the optimal k from the previous situation which used different partition sizes compared to this situation.
+
+The specificity is much higher for the test confusion matrix by almost 4%. Interestly enough the model predicted correctly the positive class almost 100%  of the time. Where the model performed poorly was that it had said that 331 people would accept the loan but they did not in reality. Comparatively, the train and validation confusion matrix said the model only had 97 false-positives. A reason for this could be due to the fact that the train and validation model for this problem was more similiar to the train and validation model from the previous part. 
+
+
 

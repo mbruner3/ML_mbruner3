@@ -1,0 +1,97 @@
+---
+title: "mbruner3_3"
+author: "Mark Bruner"
+date: "10/4/2020"
+output: pdf_document
+---
+
+# Libraries needed for this assignment.
+```{r}
+library(tidyverse)
+library(lubridate)
+library(caret)
+library(ISLR)
+library(e1071)
+library(fastDummies)
+library(dplyr)
+```
+# Imported dataset.
+```{r}
+flight_delays <- read_csv("FlightDelays.csv", col_types = "?f?ficfffffff")
+flight_delays$FL_DATE <- mdy(flight_delays$FL_DATE) # converted the FL_DATE column to date format.
+
+colMeans(is.na(flight_delays)) # no missing data.
+
+flight_delays <- dummy_cols(flight_delays, select_columns = "Flight Status", remove_selected_columns = TRUE)
+flight_delays <- flight_delays %>% rename("On Time" = "Flight Status_ontime") 
+flight_delays <- flight_delays %>% rename("Delayed" = "Flight Status_delayed") 
+flight_delays$`On Time` <- as.factor(flight_delays$`On Time`)
+flight_delays$Delayed <- as.factor(flight_delays$Delayed)
+
+library(OneR)
+flight_delays_time <- as.data.frame(bin(flight_delays$CRS_DEP_TIME, nbins = 18, labels = c(1:18)))
+flight_delays <- cbind(flight_delays_time, flight_delays)
+flight_delays <- flight_delays %>% rename("CRS_DEP_TIME GROUP NO" = "bin(flight_delays$CRS_DEP_TIME, nbins = 18, labels = c(1:18))") 
+flight_delays %>% 
+  group_by(`CRS_DEP_TIME GROUP NO`) %>%
+  summarise(CRS_DEP_TIME = length(`CRS_DEP_TIME GROUP NO`))
+head(flight_delays)
+
+flight_delays_dep_time <- as.data.frame(bin(flight_delays$DEP_TIME, nbins = 18, labels = c(1:18)))
+flight_delays <- cbind(flight_delays_dep_time, flight_delays)
+flight_delays <- flight_delays %>% rename("DEP_TIME GROUP NO" = "bin(flight_delays$DEP_TIME, nbins = 18, labels = c(1:18))") 
+flight_delays %>% 
+  group_by(`DEP_TIME GROUP NO`) %>%
+  summarise(DEP_TIME = length(`DEP_TIME GROUP NO`))
+head(flight_delays)
+```
+
+```{r}
+flight_delays_predictors <- flight_delays[, c(1, 4, 6, 10, 12, 16)] # created df with predictors.
+
+set.seed(15)
+index_train <- createDataPartition(flight_delays_predictors$DAY_WEEK, p = .6, list = FALSE)
+flight_train <- flight_delays_predictors[index_train, ] 
+flight_valid <- flight_delays_predictors[-index_train, ]
+head(flight_train)
+```
+
+```{r}
+naive_model <- naiveBayes(Delayed~`DEP_TIME GROUP NO` + CARRIER + DEST + ORIGIN + DAY_WEEK, data = flight_train)
+dest_prop_table <- as.data.frame.table(naive_model$tables$DEST)
+origin_prop_table <- as.data.frame.table(naive_model$tables$ORIGIN)
+
+dest_counts_table <- as.data.frame.table((naive_model$tables$DEST)*2201)
+origin_counts_table <- as.data.frame.table((naive_model$tables$ORIGIN)*2201)
+
+dest_table <- cbind(dest_counts_table, dest_prop_table[, 3])
+dest_table <- dest_table %>% rename("On-Time or Delayed" = "Y", "Counts" = "Freq", "Proportion" = `dest_prop_table[, 3]`) 
+dest_table
+
+origin_table <- cbind(origin_counts_table, origin_prop_table[, 3])
+origin_table <- origin_table %>% rename("On-Time or Delayed" = "Y", "Counts" = "Freq", "Proportion" = `origin_prop_table[, 3]`) 
+origin_table
+```
+
+```{r}
+predicted_flight_labels <- predict(naive_model, flight_valid)
+
+library(gmodels)
+confusionMatrix(flight_valid$Delayed, predicted_flight_labels)
+
+```
+
+```{r}
+predicted_flight_labels <- predict(naive_model, flight_valid, type = "raw")
+head(predicted_flight_labels)
+```
+```{r}
+library(pROC)
+roc(flight_valid$Delayed, predicted_flight_labels[, 2])
+
+plot.roc(flight_valid$Delayed, predicted_flight_labels[, 2])
+```
+
+
+
+

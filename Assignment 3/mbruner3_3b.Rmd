@@ -19,7 +19,10 @@ library(dplyr)
 ```{r}
 flight_delays <- read_csv("FlightDelays.csv", col_types = "?f?ficfffffff")
 flight_delays$FL_DATE <- mdy(flight_delays$FL_DATE) # converted the FL_DATE column to date format.
+```
 
+# Cleaned dataset and created dummy variables.
+```{r}
 colMeans(is.na(flight_delays)) # no missing data.
 
 flight_delays <- dummy_cols(flight_delays, select_columns = "Flight Status", remove_selected_columns = TRUE)
@@ -27,27 +30,34 @@ flight_delays <- flight_delays %>% rename("On Time" = "Flight Status_ontime")
 flight_delays <- flight_delays %>% rename("Delayed" = "Flight Status_delayed") 
 flight_delays$`On Time` <- as.factor(flight_delays$`On Time`)
 flight_delays$Delayed <- as.factor(flight_delays$Delayed)
-
+```
+# Created "bins" for CRS_DEP_TIME.
+```{r}
 library(OneR)
 flight_delays_time <- as.data.frame(bin(flight_delays$CRS_DEP_TIME, nbins = 18, labels = c(1:18)))
 flight_delays <- cbind(flight_delays_time, flight_delays)
 flight_delays <- flight_delays %>% rename("CRS_DEP_TIME GROUP NO" = "bin(flight_delays$CRS_DEP_TIME, nbins = 18, labels = c(1:18))") 
-flight_delays %>% 
+flight_delays %>%
   group_by(`CRS_DEP_TIME GROUP NO`) %>%
   summarise(CRS_DEP_TIME = length(`CRS_DEP_TIME GROUP NO`))
+flight_delays <- flight_delays[, -2]
 head(flight_delays)
+```
 
+# Created "bins" for DEP_TIME.
+```{r}
 flight_delays_dep_time <- as.data.frame(bin(flight_delays$DEP_TIME, nbins = 18, labels = c(1:18)))
 flight_delays <- cbind(flight_delays_dep_time, flight_delays)
 flight_delays <- flight_delays %>% rename("DEP_TIME GROUP NO" = "bin(flight_delays$DEP_TIME, nbins = 18, labels = c(1:18))") 
 flight_delays %>% 
   group_by(`DEP_TIME GROUP NO`) %>%
   summarise(DEP_TIME = length(`DEP_TIME GROUP NO`))
+flight_delays <- flight_delays[, -4]
 head(flight_delays)
 ```
-
+# separated dataset into only predictors and partitioned into training and vaildation set.
 ```{r}
-flight_delays_predictors <- flight_delays[, c(1, 4, 6, 10, 12, 16)] # created df with predictors.
+flight_delays_predictors <- flight_delays[, c(2, 3, 4, 8, 10, 14)] # created df with predictors.
 
 set.seed(15)
 index_train <- createDataPartition(flight_delays_predictors$DAY_WEEK, p = .6, list = FALSE)
@@ -57,7 +67,7 @@ head(flight_train)
 ```
 
 ```{r}
-naive_model <- naiveBayes(Delayed~`DEP_TIME GROUP NO` + CARRIER + DEST + ORIGIN + DAY_WEEK, data = flight_train)
+naive_model <- naiveBayes(Delayed~`CRS_DEP_TIME GROUP NO` + CARRIER + DEST + ORIGIN + DAY_WEEK, data = flight_train)
 dest_prop_table <- as.data.frame.table(naive_model$tables$DEST)
 origin_prop_table <- as.data.frame.table(naive_model$tables$ORIGIN)
 
@@ -72,14 +82,15 @@ origin_table <- cbind(origin_counts_table, origin_prop_table[, 3])
 origin_table <- origin_table %>% rename("On-Time or Delayed" = "Y", "Counts" = "Freq", "Proportion" = `origin_prop_table[, 3]`) 
 origin_table
 ```
+This model is predicting that JFK will have 17% of all delayed flights between the three airports. LGA will have 44% of all delayed flights and EWR will have 39% of all delayed flights.
 
 ```{r}
 predicted_flight_labels <- predict(naive_model, flight_valid)
 
 library(gmodels)
 confusionMatrix(flight_valid$Delayed, predicted_flight_labels)
-
 ```
+This model needs refining since incorrectly predicted that 147 flights would be delayed but were actually on-time. 
 
 ```{r}
 predicted_flight_labels <- predict(naive_model, flight_valid, type = "raw")

@@ -2,62 +2,71 @@
 title: "mbruner3_3"
 author: "Mark Bruner"
 date: "10/4/2020"
-output: pdf_document
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
 ---
 
 # Libraries needed for this assignment.
-```{r}
+```{r, echo=FALSE}
 library(tidyverse)
 library(lubridate)
 library(caret)
 library(ISLR)
-library(e1071)
 library(fastDummies)
 library(dplyr)
+library(naivebayes)
 ```
 # Imported dataset.
-```{r}
+```{r, echo=FALSE}
 flight_delays <- read_csv("FlightDelays.csv", col_types = "?f?ficfffffff")
 flight_delays$FL_DATE <- mdy(flight_delays$FL_DATE) # converted the FL_DATE column to date format.
+head(flight_delays)
 ```
+# Getting to know data.
+```{r}
+summary(flight_delays)
+```
+**The five main carriers for the flights are DH, RU, US, DL, and MQ. Over half of the flights are to LGA (La Guardia, NY). The mean and median a fairly close together for the distance variable which means that the distribution is symmetrical. Most of the flights originated out of DCA (Washington DC). The weather only impacted 32/2201 flights and caused delays from January 25 to January 27th mostly. More flights occurred on days 4 and 5. Lastly, about 19% of all flights were delayed in January.**
 
-# Cleaned dataset and created dummy variables.
+# Checked for missing values and created dummy variables.
 ```{r}
 colMeans(is.na(flight_delays)) # no missing data.
 
 flight_delays <- dummy_cols(flight_delays, select_columns = "Flight Status", remove_selected_columns = TRUE)
-flight_delays <- flight_delays %>% rename("On Time" = "Flight Status_ontime") 
-flight_delays <- flight_delays %>% rename("Delayed" = "Flight Status_delayed") 
+
+flight_delays <- flight_delays %>% 
+  rename("On Time" = "Flight Status_ontime") 
+
+flight_delays <- flight_delays %>% 
+  rename("Delayed" = "Flight Status_delayed") 
+
 flight_delays$`On Time` <- as.factor(flight_delays$`On Time`)
 flight_delays$Delayed <- as.factor(flight_delays$Delayed)
 ```
-# Created "bins" for CRS_DEP_TIME.
+**Since all variables have column means of 0, that implies that there are no missing values in this dataset.**
+
+# Created "bins" for CRS_DEP_TIME (Scheduled Departure Time).
 ```{r}
 library(OneR)
 flight_delays_time <- as.data.frame(bin(flight_delays$CRS_DEP_TIME, nbins = 18, labels = c(1:18)))
+
 flight_delays <- cbind(flight_delays_time, flight_delays)
+
 flight_delays <- flight_delays %>% rename("CRS_DEP_TIME GROUP NO" = "bin(flight_delays$CRS_DEP_TIME, nbins = 18, labels = c(1:18))") 
+
 flight_delays %>%
   group_by(`CRS_DEP_TIME GROUP NO`) %>%
   summarise(CRS_DEP_TIME = length(`CRS_DEP_TIME GROUP NO`))
+
 flight_delays <- flight_delays[, -2]
 head(flight_delays)
 ```
 
-# Created "bins" for DEP_TIME.
+# Separated dataset into only predictors and then partitioned it into training and vaildation sets.
 ```{r}
-flight_delays_dep_time <- as.data.frame(bin(flight_delays$DEP_TIME, nbins = 18, labels = c(1:18)))
-flight_delays <- cbind(flight_delays_dep_time, flight_delays)
-flight_delays <- flight_delays %>% rename("DEP_TIME GROUP NO" = "bin(flight_delays$DEP_TIME, nbins = 18, labels = c(1:18))") 
-flight_delays %>% 
-  group_by(`DEP_TIME GROUP NO`) %>%
-  summarise(DEP_TIME = length(`DEP_TIME GROUP NO`))
-flight_delays <- flight_delays[, -4]
-head(flight_delays)
-```
-# separated dataset into only predictors and partitioned into training and vaildation set.
-```{r}
-flight_delays_predictors <- flight_delays[, c(2, 3, 4, 8, 10, 14)] # created df with predictors.
+flight_delays_predictors <- flight_delays[, c(1, 2, 4, 8, 10, 14)] # created df with predictors.
 
 set.seed(15)
 index_train <- createDataPartition(flight_delays_predictors$DAY_WEEK, p = .6, list = FALSE)
@@ -65,44 +74,60 @@ flight_train <- flight_delays_predictors[index_train, ]
 flight_valid <- flight_delays_predictors[-index_train, ]
 head(flight_train)
 ```
-
+# Naive Bayes Model with training data.
 ```{r}
-naive_model <- naiveBayes(Delayed~`CRS_DEP_TIME GROUP NO` + CARRIER + DEST + ORIGIN + DAY_WEEK, data = flight_train)
-dest_prop_table <- as.data.frame.table(naive_model$tables$DEST)
-origin_prop_table <- as.data.frame.table(naive_model$tables$ORIGIN)
-
-dest_counts_table <- as.data.frame.table((naive_model$tables$DEST)*2201)
-origin_counts_table <- as.data.frame.table((naive_model$tables$ORIGIN)*2201)
-
-dest_table <- cbind(dest_counts_table, dest_prop_table[, 3])
-dest_table <- dest_table %>% rename("On-Time or Delayed" = "Y", "Counts" = "Freq", "Proportion" = `dest_prop_table[, 3]`) 
-dest_table
-
-origin_table <- cbind(origin_counts_table, origin_prop_table[, 3])
-origin_table <- origin_table %>% rename("On-Time or Delayed" = "Y", "Counts" = "Freq", "Proportion" = `origin_prop_table[, 3]`) 
-origin_table
+naive_model <- naive_bayes(flight_train[, 1:5], flight_train[, 6], laplace = 1)
 ```
-This model is predicting that JFK will have 17% of all delayed flights between the three airports. LGA will have 44% of all delayed flights and EWR will have 39% of all delayed flights.
+
+# Predicting delayed/on-time flights on validation dataset.
+```{r}
+predicted_flight_labels <- predict(naive_model, flight_valid, type = "class")
+```
+
+# Destination and Origin Proportion and Count Tables
+```{r}
+table(predicted_flight_labels, flight_valid$Delayed, dnn = c("Prediction", "Actual"))
+dest_prop <- as.data.frame(naive_model$tables$DEST)
+dest_count_delay <- as.data.frame(dest_prop[1:3, 3]*832)
+dest_count_delay <- rename(dest_count_delay, Count = `dest_prop[1:3, 3] * 832`)
+dest_count_ontime <- as.data.frame(dest_prop[4:6, 3]*46)
+dest_count_ontime <- rename(dest_count_ontime, Count = `dest_prop[4:6, 3] * 46`)
+
+dest_count <- rbind(dest_count_delay, dest_count_ontime)
+dest_count_prop <- cbind(dest_prop, dest_count)
+
+origin_prop <- as.data.frame(naive_model$tables$ORIGIN)
+origin_count_delay <- as.data.frame(origin_prop[1:3, 3]*832)
+origin_count_delay <- rename(origin_count_delay, Count = `origin_prop[1:3, 3] * 832`)
+origin_count_ontime <- as.data.frame(origin_prop[4:6, 3]*46)
+origin_count_ontime <- rename(origin_count_ontime, Count = `origin_prop[4:6, 3] * 46`)
+
+origin_count <- rbind(origin_count_delay, origin_count_ontime)
+origin_count_prop <- cbind(origin_prop, origin_count)
+
+dest_count_prop <- rename(dest_count_prop, "Ontime/Delayed" = Var2, Proportion = "Freq")
+dest_count_prop
+
+origin_count_prop <- rename(origin_count_prop, "Ontime/Delayed" = Var2, Proportion = "Freq")
+origin_count_prop
+```
+**This models predicts that JFK will have 8 delays, LGA will have 20 delays, and that EWR will have 18 delays. Also, that BWI will have 4 delays, DCA will have 23 delays, and that IAD will have 18 delays.**
 
 ```{r}
-predicted_flight_labels <- predict(naive_model, flight_valid)
-
 library(gmodels)
-confusionMatrix(flight_valid$Delayed, predicted_flight_labels)
+confusionMatrix(flight_valid$Delayed, predicted_flight_labels, dnn = c("Actual", "Prediction"))
 ```
-This model needs refining since incorrectly predicted that 147 flights would be delayed but were actually on-time. 
+**This model needs refining since incorrectly predicted that 148 flights would be delayed but were actually on-time giving it an "okay" sensitivity of 80% but still needs optimization. More importantly, the specificity (predicting a flight will be delayed and is actually delayed) is 46% which is not good since we want this model to predict if a flight will be delayed.** 
 
-```{r}
-predicted_flight_labels <- predict(naive_model, flight_valid, type = "raw")
-head(predicted_flight_labels)
-```
+
 ```{r}
 library(pROC)
+predicted_flight_labels <- predict(naive_model, flight_valid, type = "prob")
 roc(flight_valid$Delayed, predicted_flight_labels[, 2])
 
 plot.roc(flight_valid$Delayed, predicted_flight_labels[, 2])
 ```
-
+**The area under this curve is 64.6% which tells us that this model can be further improved since we want area to be reasonably close to 100%.** 
 
 
 

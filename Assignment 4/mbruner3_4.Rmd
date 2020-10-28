@@ -1,0 +1,415 @@
+---
+title: "mbruner3_4"
+author: "Mark Bruner"
+date: "10/16/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r echo = FALSE}
+rm(list=ls())
+```
+
+```{r}
+library(tidyverse)
+library(caret)
+library(corrplot)
+library(factoextra)
+library(moments)
+set.seed(15)
+```
+# Part 1: Preparing & Getting to Know Our Data
+```{r}
+univ <- read_csv("/Users/markbruner/Google Drive/MSBA/Machine Learning/mbruner3/ML_mbruner3/Assignment 4/Universities.csv")
+str(univ)
+```
+
+```{r}
+head(univ)
+```
+
+```{r}
+tail(univ)
+```
+Looking at the data, some initial observations are that there is a wide spread for applications received, applied, and new students. I would think there is a independent/dependent relationship between the applications received and applications accepted/new students enrolled. There is also wide spread for in-state, out-of-state tuition, and PHD. These are areas to look at closer which I will do later after we clean up the dataset.
+
+**First thing I want to do is rename the column names to make them easier to use. I will also separate the missing data from the complete cases just in case.**
+```{r}
+univ %>% 
+  rename(college_name  = `College Name`, # renaming columns.
+         state = State,
+         public1_private2 =`Public (1)/ Private (2)`, 
+         appli_recd = "# appli. rec'd", 
+         appli_accepted = `# appl. accepted`,
+         new_stud = "# new stud. enrolled",
+         new_stud_10 = "% new stud. from top 10%",
+         new_stud_25 = "% new stud. from top 25%",
+         ft_undergrad = "# FT undergrad",
+         pt_undergrad = "# PT undergrad",
+         in_state = "in-state tuition",
+         out_state = `out-of-state tuition`,
+         add_fees = `add. fees`,
+         book_costs = `estim. book costs`,
+         personal_costs = `estim. personal $`,
+         perc_PHD = `% fac. w/PHD`,
+         stud_fac_ratio = `stud./fac. ratio`,
+         grad_rate = `Graduation rate`
+  ) -> univ
+
+univ_missing <- univ[!complete.cases(univ), ]
+univ_complete <- univ[complete.cases(univ), ]
+
+colMeans(is.na(univ_complete)) # shows that we have successfully removed NA's from the dataset.
+```
+
+**It looks like columns 4:18, 20 are integer values but are labeled as double. I want to make sure that they are actually integers.**
+
+```{r}
+all(univ_complete[, c(4:18, 20)] == round(univ_complete[, c(4:18, 20)])) 
+```
+ 
+**All values are integers in columns 4 to 18 and 20 as the logic returned value TRUE meaning that none of the values in the columns have decimal places therefore they are integers.**
+
+### Creating Complete Cases DF
+Separated rows with NA's from rows with no NA's.
+```{r}
+univ_complete[, c(4:18, 20)] <- sapply(univ_complete[, c(4:18, 20)], as.integer) # changed column types to more accurately represents the type of numeric value, integer.
+
+univ_complete$public1_private2 <- as.factor(univ_complete$public1_private2) # Also, need to make public1_private2 into a factor.
+
+str(univ_complete)
+```
+
+### Separating Continuous & Categorical Variables
+```{r}
+univ_continuous <- as.data.frame(univ_complete[, c(4:20)])
+```
+
+
+### Exploratory Data Analysis
+**UNIVARIATE EXPLORATION**
+Summary Statistics
+```{r}
+summary(univ_complete) 
+```
+The range is large for applications received, applications accepted, and number of new students. It looks like much of the variables in this set skews positive as the means are larger than the medians. **What is the skewness of this data?**  
+
+```{r}
+skewness(univ_complete[, 4:20])
+```
+Most of the variables skew positive. Part-time undergrad is highly skewed positive, why? I also thought in-state tuition/out-of-state tuition would skew more positive. Going to look into those more through visualizing those variables as well. 
+
+```{r}
+ggplot(data = univ_complete) +
+  geom_histogram(mapping = aes(x = pt_undergrad, fill = public1_private2), binwidth = 250) +
+  xlab("Part-Time Undergraduates")
+```
+
+It appears to skew more positive due to most of the data is between 0 and 2500, then there are some outliers that have more than 6,000 PT undergrads. 
+```{r}
+ggplot(data = univ_complete) +
+  geom_boxplot(mapping = aes(x = pt_undergrad)) +
+  xlab("Part-Time Undergraduates") # to better show the outliers.
+```
+
+```{r}
+univ_complete %>% 
+  filter(pt_undergrad > 6000) # the four schools who have greater than 6,000 PT undergrads. 
+```
+
+```{r}
+ggplot(data = univ_complete) +
+  geom_histogram(mapping = aes(x = in_state, fill = public1_private2), binwidth = 500) +
+  xlab("In-State Tuition") # going to separate the public and private schools to better see the data.
+```
+
+```{r}
+univ_complete %>% 
+  filter(public1_private2 == 1) %>% 
+  ggplot() +
+      geom_histogram(mapping = aes(x = in_state, fill = public1_private2), binwidth = 250) +
+  xlab("In-State Tuition") # skews more positive.
+```
+
+```{r}
+univ_complete %>% 
+  filter(public1_private2 == 2) %>% 
+  ggplot() +
+      geom_histogram(mapping = aes(x = in_state, fill = public1_private2), binwidth = 500) +
+  xlab("In-State Tuition") # more normally distributed.
+```
+
+```{r}
+ggplot(data = univ_complete) +
+  geom_histogram(mapping = aes(x = perc_PHD, fill = public1_private2), binwidth = 2) +
+  xlab("Percent of Faculty with PhD")
+```
+
+Similar skew for both public and private. Probably because some universities that are more research focused have the higher portion of PHD faculty where more liberal arts focused/religious universities you would expect to not have as high percent of PHD faculty. An odd occurrence appeared where there may exist universities who have greater than 100% PHD faculty...seems strange.
+
+```{r}
+univ_complete %>% 
+  filter(perc_PHD > 100) # the school with 103% PHD faculty. 
+```
+
+There must be a reporting error here. I am not going to remove it since this single mistake shouldn't impact the overall PhD variable significantly and the other information from this university will probably be more helpful than that single mistake. 
+
+```{r}
+univ_complete %>% 
+  filter(public1_private2 == 1) %>% 
+  ggplot() +
+      geom_histogram(mapping = aes(x = out_state, fill = public1_private2), binwidth = 200) +
+  xlab("Out-of-State Tuition")
+```
+```{r}
+univ_complete %>% 
+  filter(public1_private2 == 2) %>% 
+  ggplot() +
+      geom_histogram(mapping = aes(x = out_state, fill = public1_private2), binwidth = 200) +
+  xlab("Out-of-State Tuition")
+```
+
+**For out-of-state tuition, both public and private universities have a more normal distribution.**
+
+### Bivariate Variable Analysis
+```{r}
+m <- cor(univ_continuous)
+corrplot(m, method = "circle")
+```
+
+There are stronger correlations between: applications received, accepted, new students, Full-time undergrad; in-state tuition, out-of-state tuition, new students from both top 10 and 25%, room, board, student/faculty ratio, graduation rate; student/faculty ration and percent of faculty with PHD. 
+
+```{r}
+ggplot(data = univ_complete) +
+  geom_boxplot(mapping = aes(x = public1_private2, y = stud_fac_ratio))+
+  xlab("Student/Faculty Ratio")
+```
+
+You would expect private schools to have a lower student/faculty ratio so nothing unusual shown above.
+
+```{r}
+ggplot(data = univ_complete) +
+  geom_boxplot(mapping = aes(x = public1_private2, y = appli_accepted)) +
+  xlab("Public Vs Private") +
+  ylab("# Students Accepted")
+```
+
+```{r}
+ggplot(data = univ_complete) +
+  geom_boxplot(mapping = aes(x = public1_private2, y = new_stud)) +
+  xlab("Public Vs Private") +
+  ylab("New Students Who Enrolled")
+```
+
+Private schools from enrollment and accepted boxplots looks almost identical outside of the change in the y-axis.
+
+
+```{r}
+ggplot(data = univ_complete) +
+  geom_smooth(mapping = aes(x = stud_fac_ratio, y = new_stud_10, color = public1_private2), se = TRUE ) +
+  xlab("Student/Faculty Ratio") +
+  ylab("Percent New Students-Top 10%")
+```
+```{r}
+ggplot(data = univ_complete) +
+  geom_smooth(mapping = aes(x = stud_fac_ratio, y = new_stud_25, color = public1_private2), se = TRUE ) +
+  xlab("Student/Faculty Ratio") +
+  ylab("Percent New Students-Top 25%")
+```
+
+This line plot illustrates an interesting trend, universities who have a lower student/faculty ratio also attract a higher percentage of students from the top 10% and 25% of their graduating class. Noticeable higher percentages of students from 10 & 25% in Private schools. Probably Ivy league schools. 
+
+```{r}
+univ_complete %>% 
+  filter(new_stud_10 > .45 & stud_fac_ratio <=10) %>% 
+  group_by(public1_private2) %>% 
+  select(new_stud_10, new_stud_25, perc_PHD, stud_fac_ratio) %>% 
+  summarise(n = n(), across (1:4, mean))
+  
+```
+It seems like there is may be a relationship between small class sizes, PHD faculty, and students from the top 10 and 25% of their class. 
+
+# Part 2: K-means Clustering
+
+### Normalize Continuous Dataset
+```{r}
+norm <- preProcess(univ_continuous, method = c("scale", "center"))
+univ_continuous <- predict(norm, univ_continuous)
+head(univ_continuous)
+```
+```{r}
+summary(univ_continuous)
+```
+
+Mean is 0 so all the data is now normalized.
+
+
+```{r}
+fviz_nbclust(univ_continuous, kmeans, method = "wss")
+fviz_nbclust(univ_continuous, kmeans, method = "silhouette")
+```
+
+**3 clusters would seem to me to be reasonable since you have smaller private and state schools, larger state schools, and ivy league schools. Optimal k would be 3 due to the "elbow" of the curve being at that point.**
+
+### K-means for k = 3 Analysis
+
+```{r}
+univ_3kmeans <- kmeans(univ_continuous, centers = 3, nstart = 25)
+```
+
+```{r}
+fviz_cluster(univ_3kmeans, data = univ_continuous)
+```
+### Finding Cluster Distances
+```{r}
+get_dist(univ_3kmeans$centers) -> dist_3kmeans
+dist_3kmeans
+mean(dist_3kmeans)
+```
+
+```{r}
+fviz_dist(dist_3kmeans)
+```
+
+### K-means for k = 4 Analysis
+Going to test both k values to see if 4 could be better. I suspect it probably will not. 
+```{r}
+univ_4kmeans <- kmeans(univ_continuous, centers = 4, nstart = 25)
+```
+
+```{r}
+fviz_cluster(univ_4kmeans, data = univ_continuous)
+```
+
+```{r}
+get_dist(univ_4kmeans$centers) -> dist_4kmeans
+dist_4kmeans
+mean(get_dist(univ_4kmeans$centers))
+```
+
+```{r}
+fviz_dist(dist_4kmeans)
+```
+
+In k = 4, clusters 1, 3, & 4 are close together and doesn't have much distance from each other. k = 3 has a higher distance average than k = 4 and also seems each cluster is further apart/better clustering than k = 4.
+
+### Combine Cluster labels to the unnormalized dataset.
+Doing this to help include observations of the categorical variables and to also see trends in the clusters better. 
+```{r}
+univ_continuous<- cbind(univ_continuous, cluster = univ_3kmeans$cluster)
+```
+
+### Cluster centers
+Creating a df for the centers and will use later for Tufts University.
+```{r}
+univ_centers <- data.frame(univ_3kmeans$centers)
+univ_centers
+```
+### Cluster Labels to Normalize Dataset
+```{r}
+univ_complete <- cbind(univ_complete, cluster = univ_3kmeans$cluster)
+```
+
+### Created a Variable "Acceptance rate"
+I found this more helpful in comparing the clusters than application received and accepted.
+```{r}
+univ_complete %>% 
+  mutate(accept_rate = appli_accepted/appli_recd) -> univ_complete
+```
+
+### Comparing Clusters
+```{r}
+univ_complete %>%  
+  group_by(cluster) %>% 
+  summarise(across(4:21, mean)) # focused on the mean for each cluster since it also represents the centroid for the cluster. Thought this would be the best way to compare/classify each cluster. 
+```
+
+**Cluster 1:** higher acceptance rate, lower graduation rate, lower percent of PHD faculty, lower tuition, lower pt undergrad, lower percent incoming freshmen from the top 10 and 25% of HS graduating class.
+
+**Cluster 2:** lower acceptance rate, higher graduation rate, lower faculty/student ratio, high percent of PHD, not much variance between in-state/out-of-state tuition, high tuition, high percent incoming freshmen from the top 10 and 25% of HS graduating class. 
+
+**Cluster 3:** closer to average acceptance rate, high student/faculty ratio, high percent of PHD faculty, low in-state tuition, higher pt undergrad, high ft undergrad, closer to average percent incoming freshmen from the top 10 and 25% of HS graduating class, high amount of applications received and accepted.
+
+**NOTE**: a summary/observations for the next three tables is located below Table 3. Table label at bottom of each table for greater clarity.
+```{r}
+univ_complete %>% # to see what proportion in each cluster is public/private.
+  group_by(cluster) %>% 
+  count(public1_private2)
+```
+
+**TABLE 1 (above)**
+
+```{r}
+univ_complete %>% # to see what proportion each cluster is located by state.
+  group_by(cluster) %>% 
+  count(state) %>% 
+  filter(n>=10)
+```
+
+**TABLE 2 (above)**
+
+```{r}
+univ_complete %>% 
+  group_by(cluster) %>% 
+  filter(cluster == 3 & public1_private2 == 2) 
+```
+
+**TABLE 3 (above)**
+
+**SUMMARY**
+Cluster 1 is mostly private religious schools, private liberal art schools, and small state schools in the midwest/east regions of the US.
+
+Cluster 2 is Ivy league universities mostly located in the East, New England areas including California.
+
+Cluster 3 are mostly large state schools spread all over the US. 
+
+
+### Possible Additional External Information
+Other external information that could help to explain these clusters could be financial aid awarded, scholarships awarded, GPA, ethnicity, & socieoeconomic status.
+
+# Part 3: Tufts University
+
+**1. Separate Tufts information into df.**
+```{r}
+univ_missing %>% 
+  filter(college_name == "Tufts University") -> tufts
+tufts
+```
+
+**2. Normalize Tufts df using the preProcess univ_continuous df normalization.**
+```{r}
+tufts_original <- tufts
+tufts_norm <- predict(norm, tufts)
+tufts_norm
+```
+
+### Tufts Distance from Cluster Centers
+```{r}
+tufts_dist <- rbind(univ_centers, tufts_norm[4:20])
+get_dist(tufts_dist, method = "euclidean")
+```
+Tufts is closest to cluster 2, at a distance of 2.75. Tufts University should be included in cluster 2.
+
+```{r}
+univ_complete %>% 
+  filter(cluster == 2) %>% 
+  summarise(mean(pt_undergrad))
+```
+This is the value that should be imputed into the PT undergrad column in the Tufts University df. 
+
+### Imputing Missing Value
+```{r}
+univ_complete %>% 
+  filter(cluster == 2) -> c2 # created a new df with only cluster 2 so I could find the mean of the pt_undergrad column and impute that value into the missing data in the Tufts df. 
+
+tufts[is.na(tufts$pt_undergrad), "pt_undergrad"] <- mean(c2$pt_undergrad)
+tufts <- rbind(tufts_original, tufts)
+tufts
+# showing Tufts information before imputing the value and after imputing the value to show that nothing else changed in the columns except for the value missing in pt_undergrad column.
+```
+```{r}
+tufts %>% 
+  select(college_name, pt_undergrad) # shows that I correctly imputed the average for cluster 2 into pt_undergrad for the Tufts data. 
+```
+

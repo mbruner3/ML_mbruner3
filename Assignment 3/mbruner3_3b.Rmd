@@ -27,6 +27,9 @@ head(flight_delays)
 # Getting to know data.
 ```{r}
 summary(flight_delays)
+```
+
+```{r}
 str(flight_delays)
 ```
 **The five main carriers for the flights are DH, RU, US, DL, and MQ. Over half of the flights are to LGA (La Guardia, NY). The mean and median a fairly close together for the distance variable which means that the distribution is symmetrical. Most of the flights originated out of DCA (Washington DC). The weather only impacted 32/2201 flights and caused delays from January 25 to January 27th mostly. More flights occurred on days 4 and 5. Lastly, about 19% of all flights were delayed in January.**
@@ -56,7 +59,7 @@ head(flight_delays)
 
 # Separated dataset into only predictors and then partitioned it into training and vaildation sets.
 ```{r}
-flight_delays_predictors <- flight_delays[, c(1, 3, 4, 8, 10, 14)] # created df with predictors.
+flight_delays_predictors <- flight_delays[, c(1, 3, 4, 7, 10, 13)] # created df with predictors.
 
 set.seed(15)
 index_train <- createDataPartition(flight_delays_predictors$DAY_WEEK, p = .6, list = FALSE)
@@ -107,6 +110,7 @@ origin_count_prop
 library(gmodels)
 confusionMatrix(flight_valid$Delayed, predicted_flight_labels, dnn = c("Actual", "Prediction"))
 ```
+
 **This model needs refining since incorrectly predicted that 148 flights would be delayed but were actually on-time giving it an "okay" sensitivity of 80% but still needs optimization. More importantly, the specificity (predicting a flight will be delayed and is actually delayed) is 46% which is not good since we want this model to predict if a flight will be delayed.** 
 
 

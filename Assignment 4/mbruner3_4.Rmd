@@ -20,14 +20,18 @@ library(moments)
 library(gridExtra)
 set.seed(15)
 ```
-# Part 1: Preparing & Getting to Know Our Data
+# Part 1: Cleaning Data
+
+After viewing the structure of the data, **I changed the column type of applications accepted, received, enrolled, PT/FT undergrads to integers since they are all counts of students. Also, I converted the public/private school column to a factor.**
+
+Additionally, I created a variable "acceptance rate" because it shows the "selectiveness" of a university and removed the accepted application column. The reason I did this was because the columns applications received and accepted doesn't easily show us the "selectiveness" of a university. I kept the applications received column so we could easily get the accepted column back if needed. I also choose to keep the applications received column over the accepted column because the number of accepted students is dependent on applications received. Applications received will also help us determine large schools from smaller schools. 
 ```{r}
 univ <- read_csv("/Users/markbruner/Google Drive/MSBA/Machine Learning/mbruner3/ML_mbruner3/Assignment 4/Universities.csv")
-str(univ)
+str(univ) # showing intitial structure of the data before the changes.
 ```
 
 ```{r}
-head(univ)
+head(univ) # head and tail of data shows if the data seems normal.
 ```
 
 ```{r}
@@ -35,7 +39,7 @@ tail(univ)
 ```
 
 ```{r}
-univ %>% 
+univ %>% # renamed columns to make them easier to work with.
   rename(
          college_name  = `College Name`, 
          state = State,
@@ -58,15 +62,11 @@ univ %>%
   ) -> univ
 ```
 
-**Applications accepted, received, enrolled, PT/FT undergrads are all counts of students so they can safely be converted into integer values. Public/Private column would be better at a factor than remaining as a character type.**
-
-### Changing Variable Type
+### Changing Variable Type (Integers and Factors)
 ```{r}
-univ[, c(4:6, 9, 10)] <- sapply(univ[, c(4:6, 9, 10)], as.integer) 
-
-univ$public1_private2 <- as.factor(univ$public1_private2)
-
-str(univ)
+univ[, c(4:6, 9, 10)] <- sapply(univ[, c(4:6, 9, 10)], as.integer) # changed "counts" columns to integers.
+univ$public1_private2 <- as.factor(univ$public1_private2) # changed public/private to a factor type.
+str(univ) # shows that these changes were made accurately.
 ```
 
 ### Acceptance Rate
@@ -74,14 +74,14 @@ str(univ)
 univ %>%
   mutate(accept_rate =  appli_accepted/appli_recd*100) %>% 
   relocate(college_name, state, public1_private2, appli_accepted, accept_rate, appli_recd, new_stud) -> univ
-
 ```
+
 
 ### Separating Continuous & Categorical Variables
 ```{r}
 univ_continuous <- as.data.frame(univ[, c(4:21)])
 ```
-I created this variable "acceptance rate" because it shows if a university is more selective than others where as applications received and accepted doesn't easily show us how "selective" a university is. I kept the applications received column so we could easily get the accepted column back if needed. 
+
 
 ### Exploratory Data Analysis
 **UNIVARIATE EXPLORATION**
@@ -89,136 +89,66 @@ Summary Statistics
 ```{r}
 summary(univ_continuous) 
 ```
-The range is large for applications received, enrolled new students, and pt/ft students. Percent of faculty with a PHD has a max of 105%.
 
 ```{r}
-univ_rm_outlier <- univ_continuous # created a separate df for the removed outliers to compare kmeans with and without them.
-```
-
-```{r}
-ggplot(data = univ_continuous) +
-  geom_boxplot(mapping = aes(x = appli_recd)) +
-  xlab("Applications Received") 
-```
-Going to remove the outlier above 40000 applications and will see if it makes a difference in our clustering algorithm or not. 
-
-```{r}
-univ_rm_outlier %>% 
-  filter(appli_recd > 40000) %>% 
-  select(appli_recd)
-
-univ_rm_outlier$appli_recd <- replace(univ_rm_outlier$appli_recd, univ_rm_outlier$appli_recd == 48094, NA)
-```
-
-
-```{r}
-ggplot(data = univ_continuous) +
-  geom_boxplot(mapping = aes(x = new_stud)) +
-  xlab("New Enrolled Students") 
+univ_continuous %>% 
+  ggplot(mapping = aes(x= stud_fac_ratio)) +
+  geom_histogram(color = "firebrick3", binwidth = 1)
 ```
 ```{r}
-ggplot(data = univ_continuous) +
-  geom_boxplot(mapping = aes(x = ft_undergrad)) +
-  xlab("Full-Time Undergraduates") 
+univ_continuous %>% 
+  ggplot(mapping = aes(x= grad_rate)) +
+  geom_histogram(color = "firebrick3", binwidth = 1)
 ```
 
-I won't remove any of the outliers in PT/FT undergrads here because of the number of universities I would have to remove and I think they could be larger state schools. The information, I believe, will be important for the clustering algorithm. 
+The range is large for applications received, enrolled new students, and pt/ft students. Percent of faculty with a PHD has a max of 105%. Most of the data skews positive as they have medians less than their means except for perc_PHD and acceptance rate which skews negative. Also, stud_fac_ratio & grad_rate have a fairly close mean and median which means they follow a fairly normal distribution. (Shown above)
 
-```{r}
-ggplot(data = univ_continuous) +
-  geom_boxplot(mapping = aes(x = pt_undergrad)) +
-  xlab("Part-Time Undergraduates") 
-```
+You would expect that most of the data would skew negative since columns are mostly counts or costs. You would assume that the lower counts would occur more frequently and the higher counts to occur less frequently creating a positive skew of the data. Same is true for costs. 
 
-Going to remove the outlier above 20000 applications and will see if it makes a difference in our clustering algorithm or not. 
+**NOTE**: After creating two df with and without outliers, the clustering model showed more overlap and less distance between clusters in the removed outlier df compared to the df with the outliers included. For this reason I decided to keep the outliers in the dataset since they seemed to help create more defined clusters which is what we want. 
 
-```{r}
-univ_rm_outlier %>% 
-  filter(pt_undergrad > 20000) %>% 
-  select(pt_undergrad)
-
-univ_rm_outlier$pt_undergrad <- replace(univ_rm_outlier$pt_undergrad, univ_rm_outlier$pt_undergrad == 21836, NA)
-```
-
-
-```{r}
-univ_rm_outlier %>% 
-  filter(perc_PHD > 100) %>% 
-  select(perc_PHD)
-
-univ_rm_outlier$perc_PHD <- replace(univ_rm_outlier$perc_PHD, univ_rm_outlier$perc_PHD > 100, NA)
-```
-
-Removed two universities PHD faculty values as they seemed to be reporting mistakes. 
 
 # Part 2: K-means Clustering
 
 ### Normalize Continuous Dataset
 ```{r}
-univ_complete_cont <- univ_continuous[complete.cases(univ), ] 
-univ_complete_orig <- univ[complete.cases(univ), ] # Keeping the original data seperate to combine clustering results with unnormalized data.
+univ_complete <- univ_continuous[complete.cases(univ), ] 
+univ_complete_orig <- univ[complete.cases(univ), ] # Keeping the original data separate to combine clustering results with unnormalized data.
 
 
 norm <- preProcess(univ_continuous, method = c("scale", "center"))
-univ_complete_cont <- predict(norm, univ_complete_cont)
+univ_complete <- predict(norm, univ_complete)
+```
 
-univ_complete_outlier <- univ_rm_outlier[complete.cases(univ), ]
-univ_cont_outlier <- predict(norm, univ_complete_outlier)
+**NOTE**: I decided to keep Tufts University in the normalization of the dataset. The reason is that the column we will be predicting for will be missing. Also, it has other information that I think is more valuable to keep in rather than to remove. 
+
+```{r}
+colMeans(is.na(univ_complete))
 ```
 
 
 ```{r}
-# complete.cases function did not remove all the NA's so I am filtering those out of the outlier_complete df. 
-univ_cont_outlier %>% 
-  filter(!is.na(perc_PHD)) -> univ_cont_outlier
-
-univ_cont_outlier %>% 
-  filter(!is.na(appli_recd)) -> univ_cont_outlier
-
-univ_cont_outlier %>% 
-  filter(!is.na(pt_undergrad)) -> univ_cont_outlier
-
-colMeans(is.na(univ_complete_cont))
-colMeans(is.na(univ_cont_outlier))
-```
-
-
-```{r}
-fviz_nbclust(univ_complete_cont, kmeans, method = "wss")
+fviz_nbclust(univ_complete, kmeans, method = "wss")
 ```
 
 ```{r}
-fviz_nbclust(univ_cont_outlier, kmeans, method = "wss")
+fviz_nbclust(univ_complete, kmeans, method = "silhouette")
 ```
 
-```{r}
-fviz_nbclust(univ_complete_cont, kmeans, method = "silhouette")
-```
-
-```{r}
-fviz_nbclust(univ_cont_outlier, kmeans, method = "silhouette")
-```
-
-**3 clusters would seem to me to be reasonable since you have smaller private and state schools, larger state schools, and ivy league schools. Optimal k would be 3 due to the "elbow" of the curve being at that point.**
+**3 clusters would seem to me to be reasonable since, from my 15 years of working in a higher ed setting, you basically have 3 types of universities: 1) smaller private and state schools, 2) larger state schools, and 3) ivy league schools. Also, optimal k would be 3 due to the "elbow" of the curve being at that point and using the information from the silhouettte method.**
 
 ### K-means for k = 3 Analysis
 
 ```{r}
-univ_3kmeans <- kmeans(univ_complete_cont, centers = 3, nstart = 25)
-univ_3kmeans_out <- kmeans(univ_cont_outlier, centers = 3, nstart = 25)
-
+univ_3kmeans <- kmeans(univ_complete, centers = 3, nstart = 25)
 ```
 
 ```{r}
-fviz_cluster(univ_3kmeans, data = univ_complete_cont)
+fviz_cluster(univ_3kmeans, data = univ_complete)
 ```
-```{r}
-fviz_cluster(univ_3kmeans_out, data = univ_cont_outlier)
-```
-Based on the clustering above, keeping the outliers in the dataset seems to be better. There is more overlapping in the clusters without the outliers. 
 
 ### Combine Cluster labels to the unnormalized dataset.
-Doing this to help include observations of the categorical variables and to also see trends in the clusters better. 
+The reason I am doing this is to help include observations of the categorical variables and to also see trends in the clusters better. 
 ```{r}
 univ_complete_orig <- cbind(univ_complete_orig, cluster = univ_3kmeans$cluster)
 ```
@@ -231,35 +161,34 @@ univ_centers
 ```
 ### Cluster Labels to Normalize Dataset
 ```{r}
-univ_complete_cont <- cbind(univ_complete_cont, cluster = univ_3kmeans$cluster)
+univ_complete_cont <- cbind(univ_complete, cluster = univ_3kmeans$cluster)
 ```
 
-### Comparing Clusters Graphically (attributes columns 1:5)
+### Comparing Clusters Graphically
 ```{r}
 univ_complete_orig %>%  
   group_by(cluster) %>%
-  summarise(across(5:21, mean)) -> univ_key
+  summarise(across(5:21, mean)) -> univ_key # created a df of the means of each cluster unnormalized.
 
-univ_key$cluster <- as.factor(univ_key$cluster)
+univ_key$cluster <- as.factor(univ_key$cluster) # made the cluster column a factor.
  
-univ_key %>% 
+univ_key %>%  # rearranged the columns to organize the columns in more logically way. Groupings as follows: percentage columns, count columns , tuition columns, costs columns.
   relocate(cluster, stud_fac_ratio, accept_rate, new_stud_10, new_stud_25, perc_PHD, grad_rate) -> univ_key
 
-univ_key1 <- univ_key[, c(1:7)]
-univ_key2 <- univ_key[, c(1, 8:11)]
-univ_key3 <- univ_key[, c(1, 12:13)]
-univ_key4 <- univ_key[, c(1, 14:18)]
+univ_key1 <- univ_key[, c(1:7)] # percentage columns
+univ_key2 <- univ_key[, c(1, 8:11)] # count columns
+univ_key3 <- univ_key[, c(1, 12:13)] # tuition columns
+univ_key4 <- univ_key[, c(1, 14:18)] # costs columns
 
+# reoganizing each key df into a "key", "value" column to be able to represent the data easier graphically. 
 univ_key1 %>% 
-  gather(key = "key", value = "value", -cluster) -> univ_key1
+  gather(key = "key", value = "value", -cluster) -> univ_key1 
 univ_key2 %>% 
   gather(key = "key", value = "value", -cluster) -> univ_key2
 univ_key3 %>% 
   gather(key = "key", value = "value", -cluster) -> univ_key3
 univ_key4 %>% 
   gather(key = "key", value = "value", -cluster) -> univ_key4
-
-library(esquisse)
 
 ggplot(univ_key1) +
  aes(x = key, fill = cluster, weight = value) +
@@ -273,7 +202,7 @@ ggplot(univ_key2) +
  aes(x = key, fill = cluster, weight = value) +
  geom_bar(position = "dodge") +
  scale_fill_brewer(palette = "Pastel1") +
- labs(x = "Attributes", y = "Values", title = "University Percentages") +
+ labs(x = "Attributes", y = "Values", title = "Student Counts") +
  theme_minimal() +
  theme(legend.position = "bottom") -> p2
 
@@ -281,7 +210,7 @@ ggplot(univ_key3) +
  aes(x = key, fill = cluster, weight = value) +
  geom_bar(position = "dodge") +
  scale_fill_brewer(palette = "Pastel1") +
- labs(x = "Attributes", y = "Values", title = "University Percentages") +
+ labs(x = "Attributes", y = "Values", title = "University Tuition") +
  theme_minimal() +
  theme(legend.position = "bottom") -> p3
 
@@ -289,7 +218,7 @@ ggplot(univ_key4) +
  aes(x = key, fill = cluster, weight = value) +
  geom_bar(position = "dodge") +
  scale_fill_brewer(palette = "Pastel1") +
- labs(x = "Attributes", y = "Values", title = "University Percentages") +
+ labs(x = "Attributes", y = "Values", title = "University Non-Tuition Costs") +
  theme_minimal() +
  theme(legend.position = "bottom") -> p4
 
@@ -299,34 +228,75 @@ grid.arrange(p1, p2)
 ```{r}
 grid.arrange(p3, p4)
 ```
-**Cluster 1:** The universities in cluster 1 have a higher student/faculty ratio than cluster 1, lowest percent of faculty with PHD, has a lower percentage of new students from the top 10/25% of their class, lowest graduation rate but high acceptance rate, have the lowest part-time/full-time undergraduates & new students. Also, they receive the lowest amount of applications from students. Tuition is about the same for students in-state as out-of-state.  
 
-**Cluster 2:** The universities in cluster 2 have the lowest student/faculty, a high percent of faculty with PhD's, highest percent of students from the top 10/25% of their graduating class. Cluster 2 schools are more selective having the lowest acceptance rate. Due to their selectiveness they have lower amount of new students enrolled and those students are mostly full-time. Tuition is the highest of the three clusters and in-state tuition is the same as out-of-state. Room and board are also the highest of the three clusters. 
+**Cluster 1:** 
+<br>The universities in cluster 1 have:
 
-**Cluster 3:** The universities in cluster 3 have the highest student/faculty ratio, the most applications received, the most accepted new students, have a lower acceptance rate than cluster 1 but higher than cluster 2. Their graduation rate is better than cluster 1 but not as good as cluster 2. They attract more students from the top 10/25% than cluster 1. Tuition is much less for those students in the state of that university but much higher if you are not. 
+  1. Lower student/faculty ratio 
+  2. **Lowest** percent of faculty with PHD
+  3. Lower percentage of new students from the top 10/25% of their class
+  4. **Lowest** graduation rate but high acceptance rate
+  5. **Lowest** part-time/full-time undergraduates & new students 
+  6. **Lowest** amount of applications from students 
+  7. Tuition is about the same for students in-state as out-of-state  
 
+**Cluster 2:** 
+<br>The universities in cluster 2 have:
+
+  1. **Lowest** student/faculty ratio
+  2. **Highest** percent of faculty with PhD's
+  3. **Highest** percent of new students from the top 10 & 25% 
+  4. **Lowest** acceptance rate
+  5. Students are mostly full-time
+  6. **Highest** tuition with in-state tuition equal to out-of-state 
+      tuition 
+  7. **Highest** room and board 
+
+**Cluster 3:** 
+<br>The universities in cluster 3 have:
+
+  1. **Highest** student/faculty ratio
+  2. **Highest** applications received
+  3. **Highest** accepted new students
+  4. Lower acceptance rate than cluster 1
+  5. Higher graduation rate than cluster 1
+  6. Higher new students from the top 10 & 25% than cluster 1
+  7. **Lowest** in-state tuition but comparable out-of-state tuition to 
+      cluster 1 
 
 ```{r}
+# To better compare locations of universities, I used the US Census Bureau division of regions https://www2.census.gov/geo/pdfs/maps-data/maps/reference/us_regdiv.pdf to break the states up into larger groupings. 
 
-west <- c("AK", "HI", "CA", "OR", "WA", "AZ", "NV", "ID", "MT", "WY", "CO", "NM", "UT")
-midwest <- c("SD", "ND", "NE", "KS", "MO", "IL", "IA", "WI", "MN", "OH", "MI", "IN")
-south <- c("TX", "OK", "AR", "LA", "MS", "AL", "TN", "GA", "FL", "SC", "NC", "WV", "VA", "KY", "MD", "DE", "DC")
-northeast <- c("PA", "NY", "NJ", "CT", "RI", "MA", "NH", "VT", "ME")
+pacific <- c("CA", "OR", "WA", "HI", "AK")
+mountain <- c("AZ", "NV", "ID", "MT", "WY", "CO", "NM", "UT")
+nw_central <- c("SD", "ND", "NE", "KS", "MO", "IA", "MN")
+ne_central <- c("WI", "MI", "IL", "IN", "OH")
+sw_central <- c("OK", "TX", "AR", "LA")
+se_central <- c("KY", "TN", "MS", "AL")
+s_atlantic <- c("GA", "FL", "SC", "NC", "WV", "VA", "MD", "DE", "DC")
+mid_atlantic <- c("NY", "PA", "NJ")
+new_england <- c("CT", "RI", "MA", "NH", "VT", "ME")
 
 region.list <- list(
-  Northeast = northeast,
-  Midwest= midwest,
-  South = south,
-  West= west)
+  Pacific = pacific,
+  Mountain = mountain,
+  "NW Centr" = nw_central,
+  "NE Centr" = ne_central,
+  "SW Centr" = sw_central,
+  "SE Centr" = se_central,
+  "S Atl" = s_atlantic,
+  "Mid Atl" = mid_atlantic,
+  "New England" = new_england
+  )
 
+# A function to apply region names to the new region column in the df. 
 univ_complete_orig$regions <- sapply(univ_complete_orig$state, 
                  function(x) names(region.list)[grep(x,region.list)])
 
+# Organizing the regions, state, and college name columns together. 
 univ_complete_orig$cluster <- as.factor(univ_complete_orig$cluster)
 univ_complete_orig %>% 
   relocate(college_name, state, regions) -> univ_complete_orig
-
-
 
 univ_complete_orig$regions <- as.character(univ_complete_orig$regions)
 univ_complete_orig$regions <- as.factor(univ_complete_orig$regions)
@@ -339,8 +309,7 @@ ggplot(univ_complete_orig) +
  theme_minimal() +
  facet_grid(vars(cluster), vars()) +
  theme(legend.position = "bottom") 
-```
-```{r}
+
 ggplot(univ_complete_orig) +
  aes(x = ft_undergrad, fill = public1_private2) +
  geom_histogram(bins = 20) +
@@ -349,14 +318,43 @@ ggplot(univ_complete_orig) +
  theme_minimal() +
  facet_grid(vars(cluster), vars(), scales = "free") +
  theme(legend.position = "bottom") 
+
+ggplot(univ_complete_orig) +
+ aes(x = pt_undergrad, fill = public1_private2) +
+ geom_histogram(bins = 50) +
+ scale_fill_brewer(palette = "Accent") +
+ labs(title = "Universities by Size (PT Students)") + 
+ theme_minimal() +
+ facet_grid(vars(cluster), vars(), scales = "free") +
+ theme(legend.position = "bottom") 
+
+ggplot(univ_complete_orig) +
+ aes(x = in_state, fill = public1_private2) +
+ geom_histogram(bins = 50) +
+ scale_fill_brewer(palette = "Accent") +
+ labs(title = "In-State Tuition") + 
+ theme_minimal() +
+ facet_grid(vars(cluster), vars(), scales = "free") +
+ theme(legend.position = "bottom") 
+
+ggplot(univ_complete_orig) +
+ aes(x = out_state, fill = public1_private2) +
+ geom_histogram(bins = 50) +
+ scale_fill_brewer(palette = "Accent") +
+ labs(title = "Out-Of-State Tuition") + 
+ theme_minimal() +
+ facet_grid(vars(cluster), vars(), scales = "free") +
+ theme(legend.position = "bottom") 
 ```
 
+
+
 **SUMMARY**
-Cluster 1 is a mixture of small private and public schools spread across the country.
+<br>I believe that **Cluster 1** represent public state schools because they are evenly spread across the country. Also, the cost of in-state tuition is  significantly lower than the out-of-state tuition. The Private schools in this cluster are located in the North East, North West central, and South Atlantic regions. Due to the size of the private schools, the cost of tuition being higher, and being located mostly in the north/south regions they are probably mostly religious and liberal arts private schools.   
 
-Cluster 2 are Ivy league universities mostly located mostly in the Northeast & Midwest regions.
+I believe that **Cluster 2** are elite or prestigious universitiesbecause they are located mostly in the East North Central, New England, and Middle Atlantic regions with smaller numbers of FT undergraduates. They have a very high percent of PhD faculty, have basically no PT undergraduates, and have a very high tuition cost for both in-state and out-of-state.
 
-Cluster 3 are mostly large state schools spread all over mainly in the South, Midwest, Norteast regions. 
+I believe **Cluster 3** are mostly large state schools spread fairly evenly accross the country, have a lower in-state tuition, higher percent of PhD faculty, high amount of FT undergraduates, and high PT undergraduates. 
 
 
 ### Possible Additional External Information
@@ -383,14 +381,21 @@ tufts_norm
 tufts_dist <- rbind(univ_centers, tufts_norm[, 4:21])
 get_dist(tufts_dist, method = "euclidean")
 ```
-Tufts is closest to cluster 2, at a distance of 2.73. Tufts University should be included in cluster 2.
+Tufts is closest to cluster 2, at a distance of 2.73. Tufts University should be included in cluster 2. This means that the Kmeans algorithm is predicting that Tufts University is a Ivy League school. According to US News & World report it confirms that it is an elite university ranking as #30 in the nation. 
+
+**Citation:**<br> 
+https://www.usnews.com/best-colleges/tufts-university-2219
 
 ```{r}
 univ_complete_orig %>% 
   filter(cluster == 2) %>% 
   summarise(mean(pt_undergrad)) -> mean
+mean
 ```
-This is the value that should be imputed into the PT undergrad column in the Tufts University df. 
+This is the value that should be imputed into the PT undergrad column in the Tufts University df. Meaning that they have an average of 276 PT undergraduates. The 2019-2020 Tufts University had at total of 165 PT undergraduates vs. 5643 FT undergraduates. Although the mean of cluster 2 PT undergrad value isn't "exact" what it does successfully communicate is that this university has a very lower number of PT undergraduates. 
+
+**Citation**<br>
+https://provost.tufts.edu/institutionalresearch/about-tufts/common-data-set/
 
 ### Imputing Missing Value
 ```{r}

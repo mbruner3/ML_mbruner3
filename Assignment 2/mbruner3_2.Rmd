@@ -1,27 +1,24 @@
 ---
-title: "mbruner3_2"
+title: "Predicting Acceptance of a Personal Loan"
 author: "Mark Bruner"
 date: "9/22/2020"
 output: pdf_document
 ---
 
-# Libraries needed for this assignment.
 ```{r}
-library(ggplot2)
+library(tidyverse)
 library(caret)
 library(ISLR)
-library(readr)
+library(fastDummies)
+library(FNN)
 ```
-# Imported dataset.
-```{r}
-unibank <- read_csv("UniversalBank.csv", col_types = "iiiiiidiifffff")
-head(unibank)
 
+```{r}
+unibank <- read_csv("UniversalBank.csv", col_types = "iiiiiidfifffff")
 ```
 # Cleaning dataset. 
 Removed Zip Code and ID columns. Also, made dummy categories for Education and removed the Education column. Lastly, converted dataset into a data frame.
 ```{r}
-library(fastDummies)
 unibank <- dummy_cols(unibank, select_columns = 'Education')
 unibank <- unibank[, c(-1, -5, -8)]
 unibank_df <- data.frame(unibank)
@@ -46,7 +43,7 @@ customer_df <- data.frame(
   "Family" = as.integer(2), 
   "CCAvg" = as.double(2), 
   "Mortgage" = as.integer(0), 
-  "Personal.Loan" = c(0, 1),
+  "Personal.Loan" = NA,
   "Securities.Account" = as.factor(0), 
   "CD.Account" = as.factor(0), 
   "Online" = as.factor(1), 
@@ -75,9 +72,8 @@ valid_norm[, c(1:6)] <- predict(norm_values, valid_data[, c(1:6)])
 
 # kNN Modeling
 ```{r}
-library(FNN)
-knn_valid <- knn(train = train_norm[, c(1:6)], test = valid_norm[, c(1:6)], cl = train_norm[, 7], k = 1)
 
+knn_valid <- knn(train = train_norm[, c(1:6)], test = valid_norm[, c(1:6)], cl = train_norm[, 7], k = 12)
 ```
 
 # Prediction
@@ -93,7 +89,18 @@ customer_norm_predictors <- customer_df[, c(1:6)]
 unibank_predictors <- unibank_norm[, c(1:6)]
 
 unibank_norm_labels <- unibank_norm[, 7]
-customer_test_labels <- customer_df[, 7]
+```
+
+# Confusion Matrix and optimal k for Validation
+```{r}
+knn_valid_optimal <- knn(
+                  train_norm[, c(1:6)], 
+                  test = valid_norm[, c(1:6)], 
+                  cl = train_norm[, 7], 
+          k = 2)
+confusionMatrix(valid_norm[, 7], knn_valid, positive = "1")
+confusionMatrix(valid_norm[, 7], knn_valid_optimal, positive = "1")
+
 ```
 
 #Prediction of Customer
@@ -102,13 +109,14 @@ predicted_customer_labels <- knn(
                         unibank_predictors, 
                         customer_norm_predictors, 
                         cl = unibank_norm_labels, 
-                    k = 1)
+                    k = 12)
 head(predicted_customer_labels)
-```
-# CrossTable 
-```{r}
-library(gmodels)
-CrossTable(x = customer_test_labels, y = predicted_customer_labels, prop.chisq = FALSE)
+
+customer_df$Personal.Loan <- knn(
+                        unibank_predictors, 
+                        customer_norm_predictors, 
+                        cl = unibank_norm_labels, 
+                    k = 12)
 ```
 The prediction of "0" above means that the customer would not accept the personal loan.
 
@@ -133,7 +141,7 @@ for(i in 1:14) {
 
 accuracyTest_df
 
-library(ggplot2)
+
 ggplot(accuracyTest_df,aes(k,accuracy)) + 
       geom_line(colour = "light blue") +  
       geom_point(colour = "blue", size = 2) + 
@@ -144,24 +152,11 @@ ggplot(accuracyTest_df,aes(k,accuracy)) +
       xlab("kNN Value") +
       ylab('Accuracy')
 ```
-# k =  12 is the value that provide the best performance.
+# k =  2 is the value that provide the best performance.
 
-# Confusion Matrix and optimal k for Validation
-```{r}
-knn_valid_optimal <- knn(
-                  train_norm[, c(1:6)], 
-                  test = valid_norm[, c(1:6)], 
-                  cl = train_norm[, 7], 
-          k = 12)
-confusionMatrix(valid_norm[, 7], knn_valid, positive = "1")
-confusionMatrix(valid_norm[, 7], knn_valid_optimal, positive = "1")
 
-```
-There are two types of errors in the confusion matrix which are: Type 1 and Type 2. The first type of error is a false positive. What this means for this problem is that the model predicted a person as accepting a personal loan but in reality (according to validation data) they rejected it. According to the confusion matrix above, the model predicted 58 (second confusion matrix) people as accepting a personal loan but in reality they rejected it.
 
-The second type of error is a false negative. What this means is that the model predicted a person as not accepting the personal loan but in reality they did accepted it. According to the confusion matrix above, the model said that 138 people would reject the personal loan but in reality (according to the validation set) they accepted it.
-
-The precision of this model is 96.8% (second confusion matrix), meaning that it correctly predicts a person of accepting a loan 96.8% of the time, which I believe is good. Compared to the kNN model where k = 1 (top confusion matrix) is used, this model predicts correctly predicted 33 more people.
+The precision of this model is 90.95% (second confusion matrix), meaning that it correctly predicts a person of accepting a loan 90.95% of the time, which I believe is good. Compared to the kNN model where k = 12 (top confusion matrix) is used, this model predicts correctly predicted 33 more people.
 
 However, the specificity (predicted rejection of loan/actual rejection of loan) is higher in the k = 1 model compared to the k = 12 model. The k =1 model predicted 22 more people who would reject the loan correctly compared to the k = 12 model.
 
@@ -173,7 +168,7 @@ predicted_customer_labels <- knn(
                         unibank_predictors, 
                         customer_norm_predictors, 
                         cl = unibank_norm_labels, 
-                    k = 12)
+                    k = 2)
 head(predicted_customer_labels)
 ```
 # CrossTable 

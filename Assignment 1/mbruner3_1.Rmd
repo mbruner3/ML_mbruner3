@@ -6,38 +6,41 @@ output:
   pdf_document: default
   html_document: default
 ---
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(warning = FALSE, message = FALSE)
-dir.create("images")
+```{r echo = FALSE}
+rm(list=ls())
 ```
 
 ## Reference
 Data is taken from http://faculty.marshall.usc.edu/gareth-james/ISL/College.csv
 
-## Start
-Loaded in the college.csv and assigned it to the variable "college". Renamed the first column in the data set.
 ```{r}
-library(readr)
-library(dplyr)
-college <- read_csv("college.csv", col_types = "cciiiiiiiiiiiiiiiii")
-college <- rename(college, "College Name" = "X1")
-college 
+library(tidyverse)
+library(ISLR)
+library(caret)
 ```
 
-Loaded "summarytools" package.
 ```{r}
-library(summarytools)
+college <- read_csv("college.csv", col_types = "cciiiddiidddddddddd")
+head(college)
+tail(college)
+str(college)
 ```
 
-# Quantitative Descriptive Statistics
-Made the "Apps" column in college data set a variable and ran summary of desc. statistcs.
+
 ```{r}
-apps <- college$Apps
-descr(x = apps)
+college %>%  
+  rename("College.Name" = "X1")
 ```
+
+```{r}
+summary(college)
+colMeans(is.na(college))
+```
+**Data Summary**
+No missing data in the dataset. 
+
 
 ##Qualitative Descriptive Statistics & Transformation of Data 
-Used the "Private" column in the College data set and converted it to a DF. After that I added a column to the DF to represent the percentage.
 ```{r}
 library(tidyverse)
 private <- table(college$Private)
@@ -51,16 +54,14 @@ private_df_percent
 ## Scatterplot: Multi-variable
 Created a scatterplot of the two variable Applications and Acceptance in the College Data Set.
 ```{r}
-library(ggplot2)
-Applications = college$Apps
-Acceptance = college$Accept
-Private = college$Private
-ggplot(data = college, aes(x = Applications, y = Acceptance, col = Private, shape = Private)) + geom_point()
+college %>% 
+  ggplot(mapping = aes(x = Apps, y = Accept, col = Private, shape = Private)) + geom_point()
 ```
 
 # Single Variable Visualization
-ggplot(data = college, aes(x = Private)) + geom_histogram(stat = "Count", fill = "light blue", col = "skyblue")
 
 ```{r}
-ggplot(data = college, aes(x = Private)) + geom_histogram(stat = "Count", fill = "light blue", col = "skyblue")
+college %>% 
+  ggplot(mapping = aes(x = Private)) + 
+  geom_histogram(stat = "Count", fill = "light blue", col = "skyblue")
 ```

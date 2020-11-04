@@ -79,7 +79,7 @@ predicted_flight_labels <- predict(naive_model, flight_valid, type = "class")
 
 # Destination and Origin Proportion and Count Tables
 ```{r}
-table(predicted_flight_labels, flight_valid$Delayed, dnn = c("Prediction", "Actual"))
+table(predicted_flight_labels, flight_valid$`Flight Status` , dnn = c("Prediction", "Actual"))
 dest_prop <- as.data.frame(naive_model$tables$DEST)
 dest_count_delay <- as.data.frame(dest_prop[1:3, 3]*832)
 dest_count_delay <- rename(dest_count_delay, Count = `dest_prop[1:3, 3] * 832`)

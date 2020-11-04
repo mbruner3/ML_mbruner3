@@ -409,36 +409,3 @@ tufts_demo %>%
   select(pt_undergrad)
 # showing Tufts information before imputing the value and after imputing the value to show that nothing else changed in the columns except for the value missing in pt_undergrad column.
 ```
-## Extra Musings
-### Kmeans Imputing
-```{r}
-library(ClustImpute)
-univ_impute <- ClustImpute(univ_continuous, nr_cluster = 3, nr_iter = 25, seed_nr = 15)
-complete_impute <- univ_impute$complete_data
-univ_imp_comp <- cbind(complete_impute, univ_impute$clusters)
-univ_imp_comp <- cbind(univ[, 1:3], univ_imp_comp)
-
-colMeans(is.na(univ_imp_comp))
-
-univ_imp_cont <- univ_imp_comp[, c(-1:-3, -22)] # removed categorical variables. 
-```
-
-### Normalized Continuous DF
-```{r}
-norm_impute <- preProcess(univ_imp_cont, method = c("scale", "center"))
-univ_imp_cont <- predict(norm_impute, univ_imp_cont)
-```
-
-```{r}
-univ_imp_kmeans <- kmeans(univ_imp_cont, centers = 3, nstart = 25)
-```
-
-```{r}
-fviz_cluster(univ_imp_kmeans, data = univ_imp_cont)
-```
-
-```{r}
-library(pcaPP)
-univ_pca <- PCAgrid(univ_imp_cont, k = 3, method = c ("mad", "sd", "qn"))
-```
-

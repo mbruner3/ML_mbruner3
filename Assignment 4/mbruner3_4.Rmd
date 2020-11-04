@@ -3,8 +3,8 @@ title: "University Prediction with K-Means Clustering"
 author: "Mark Bruner"
 date: "10/16/2020"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r echo = FALSE}

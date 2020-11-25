@@ -1,0 +1,210 @@
+---
+title: "Assignment 5"
+author: "Mark Bruner"
+date: "11/9/2020"
+output: html_document
+---
+
+## WHAT MAKES A CEREAL HEALTHY? A RECOMMENDATION
+A school wants me to recommend a set of cereals that are healthy. I am using the USDA, FDA, and other reputable sources to determine the attributes of a healthy cereal.I will state my assumptions of what is considered healthy below and will be using those as a guide for determining types of clusters.
+
+**HEALTHY GUIDELINES**
+* **Sugar content:** .25g of sugar for every 4g of cereal. _(**Reference**: https://www.fns.usda.gov/tn/choose-breakfast-cereals-are-lower-sugar)_
+
+* **Fiber at least 3 grams per serving** (using this reference for this measure since it was more difficult to find a specific number to use.)
+_(**Reference**: https://foodcorps.org/cms/assets/uploads/2018/01/Healthy-School-Program-Resource-Guide-1-11.pdf)_
+
+* **Sodium content:**
+  * Low sodium: 5% or less per serving size
+  * High sodium: 20% or more per serving size
+  _(**Reference**: https://www.fda.gov/food/nutrition-education-resources-materials/sodium-your-diet)_
+
+**NOTE** I do not include fat content because fat can be healthy. Since the type of fats are not included I am not going to use that as a factor for healthy or unhealthy. Also, vitamins are listed together and not separately so it is harder to determine healthy levels/types. In addition, many cereals add vitamins to the cereals but are high in sugar so probably not a great measure. Lastly, if the cereal has no vitamins that could be helpful but I think the above measures are better for evaluating healthy cereals from unhealthy. 
+
+These guidelines may change as I inspect the clusters and data but these initial guides are a helpful foundation.
+
+```{r echo = FALSE}
+# Used to clear out the Global Environment.
+rm(list=ls())
+```
+
+```{r, message = FALSE}
+# List of packages used for this project.
+library(tidyverse)
+library(caret)
+library(factoextra)
+library(cluster)
+library(fpc)
+library(fastDummies)
+set.seed(15)
+```
+
+```{r}
+# Changed the column types to better represent the types in the variables.
+cereal <- read_csv("Cereals.csv", col_types = c("cffiiiiddiiifddd"))
+```
+
+```{r}
+# Looking at the overall structure of the dataset and for any variables needing to be renamed, reclassified, or one hot encoded.
+head(cereal)
+tail(cereal)
+str(cereal)
+
+# Determining any missing values and in which columns they are located.
+colMeans(is.na(cereal))
+```
+
+Carbo, sugars, and potass are the only variables with missing values. It makes the most sense to simply remove them since it will only be about 3 cereals (rows). Also, noticed that the data for weight measurement is mixed. Going to convert the weight measurement to grams as well as the cups column. Using 201.6g per cup and 453.6g per lbs (it seems that the weight column is in lbs.). Normalizing will remove these measurements but I will need to compare clusters later, pre-normalization, so this conversion will help me later. Also, the USDA has different levels for healthy amounts of sugars depending on the serving size in grams.
+
+```{r}
+# Converted cups/weights to grams.
+cereal %>% 
+  mutate(cups = cups * 201.6, weight = weight * 453.6) %>% 
+  rename(serving_size = cups) -> cereal
+```
+
+### Normalizing Dataset
+```{r}
+# normalized the dataset before removing rows with missing values so I can use the values in those rows to help get closer to the "true" mean and variance.
+norm <- preProcess(cereal, method = "scale", "center")
+```
+
+
+```{r}
+# Removed the rows with missing values.
+complete <- cereal[complete.cases(cereal), ] 
+colMeans(is.na(complete))
+```
+
+```{r}
+# One hot encoding of "type" and "shelf" variables.
+complete <- dummy_cols(complete, select_columns = c("type", "shelf"), remove_first_dummy = FALSE, remove_selected_columns = TRUE)
+```
+
+
+
+```{r}
+# Normalizing compete df.
+norm <- preProcess(complete, method = c("scale", "center"))
+complete <- predict(norm, complete)
+summary(complete)
+```
+
+```{r}
+rownames(complete) <- complete$name
+d <- dist(complete, method = "euclidean")
+
+# Hierarchical clustering using Complete Linkage, Single Linkage, Average Linkage, and Ward. Using agnes() to obtain the AC or cluster structure strength and using hclust() to plot dendrogram.
+library(dendextend)
+hc_comp <- hclust(d, method = "complete")
+dend_comp <- as.dendrogram(hc_comp)
+
+par(mar=c(10,1,1,1))
+dend_comp %>%
+  set("labels_col", value = c("skyblue","firebrick", "orange", "grey", "blue", "green", "purple", "pink"), k=7) %>%
+  set("branches_k_color", value = c("skyblue","firebrick", "orange", "grey", "blue", "green", "purple", "pink"), k = 7) %>%
+  set("nodes_cex", 0.7) %>% 
+  set("labels_cex", .6) %>% 
+  plot(axes=FALSE)
+```
+
+
+```{r}
+hc_single <- hclust(d, method = "single")
+dend_single <- as.dendrogram(hc_single)
+par(mar=c(10,1,1,1))
+dend_single %>%
+  set("labels_col", value = c("skyblue","firebrick", "orange", "grey", "blue", "green", "purple", "pink"), k=7) %>%
+  set("branches_k_color", value = c("skyblue","firebrick", "orange", "grey", "blue", "green", "purple", "pink"), k = 7) %>%
+  set("nodes_cex", 0.7) %>% 
+  set("labels_cex", .6) %>% 
+  plot(axes=FALSE)
+```
+
+```{r}
+hc_ave <- hclust(d, method = "ave")
+dend_ave <- as.dendrogram(hc_ave)
+par(mar=c(10,1,1,1))
+dend_ave %>%
+  set("labels_col", value = c("skyblue","firebrick", "orange", "grey", "blue", "green", "purple", "pink"), k=7) %>%
+  set("branches_k_color", value = c("skyblue","firebrick", "orange", "grey", "blue", "green", "purple", "pink"), k = 7) %>%
+  set("nodes_cex", 0.7) %>% 
+  set("labels_cex", .6) %>% 
+  plot(axes=FALSE)
+```
+
+```{r}
+hc_ward <- hclust(d, method = "ward.D2")
+dend_ward <- as.dendrogram(hc_ward)
+par(mar=c(10,1,1,1))
+dend_ward %>%
+  set("labels_col", value = c("skyblue","firebrick", "orange", "pink", "purple", "green", "steelblue"), k=7) %>%
+  set("branches_k_color", value = c("skyblue","firebrick", "orange", "pink", "purple", "green", "steelblue"), k = 7) %>%
+  set("nodes_cex", 0.7) %>% 
+  set("labels_cex", .6) %>% 
+  plot(axes=TRUE)
+
+```
+
+
+
+```{r}
+test_split <- createDataPartition(complete$sugars, p = .6, list = FALSE)
+test <- complete[test_split, ]
+
+row.names(test) <- test$name
+d2 <- dist(test, method = "euclidean")
+
+hc_test <- hclust(d2, method = "ward")
+dend_test <- as.dendrogram(hc_test)
+par(mar=c(10,1,1,1))
+dend_test %>%
+  set("labels_col", value = c("skyblue","firebrick", "orange", "pink", "purple", "green", "steelblue"), k=7) %>%
+  set("branches_k_color", value = c("skyblue","firebrick", "orange", "pink", "purple", "green", "steelblue"), k = 7) %>%
+  set("nodes_cex", 0.7) %>% 
+  set("labels_cex", .6) %>% 
+  plot(axes=FALSE)
+
+
+```
+
+
+```{r}
+# Plotting each of the HC to see what their dendrograms look like so I can make a better determination of cluster numbers.
+
+dend_ward[dend_test, )
+
+dend_list <- dendlist(dend_ward, dend_test)
+
+tanglegram(dend_ward, dend_test,
+  highlight_distinct_edges = FALSE, # Turn-off dashed lines
+  common_subtrees_color_lines = FALSE, # Turn-off line colors
+  common_subtrees_color_branches = TRUE, # Color common branches 
+  main = paste("entanglement =", round(entanglement(dend_list), 2))
+  )
+
+fviz_nbclust(complete, FUN = hcut, method = "wss")
+fviz_nbclust(complete, FUN = hcut, method = "silhouette")
+gap_stat <- clusGap(complete[, 3:19], FUN = hcut, nstart = 20, K.max = 10, B = 70)
+fviz_gap_stat(gap_stat)
+```
+
+**See https://uc-r.github.io/hc_clustering** (remove!!)
+
+## Cluster Assessment
+
+```{r}
+# Agglomerative coefficient with Agnes.
+m <- c( "average", "single", "complete", "ward")
+names(m) <- c( "average", "single", "complete", "ward")
+
+# function to compute coefficient
+ac <- function(x) {
+  agnes(d, method = x)$ac
+}
+
+map_dbl(m, ac)
+
+ward <- agnes(d, method = "ward")
+```
+

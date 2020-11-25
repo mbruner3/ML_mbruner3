@@ -172,7 +172,7 @@ dend_test %>%
 ```{r}
 # Plotting each of the HC to see what their dendrograms look like so I can make a better determination of cluster numbers.
 
-dend_ward[dend_test, )
+dend_list
 
 dend_list <- dendlist(dend_ward, dend_test)
 

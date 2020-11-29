@@ -24,7 +24,7 @@ After viewing the structure of the data, **I changed the column type of applicat
 
 Additionally, I created a variable "acceptance rate" because it shows the "selectiveness" of a university and removed the accepted application column. The reason I did this was because the columns applications received and accepted doesn't easily show us the "selectiveness" of a university. I kept the applications received column so we could easily get the accepted column back if needed. I also choose to keep the applications received column over the accepted column because the number of accepted students is dependent on applications received. Applications received will also help us determine large schools from smaller schools. 
 ```{r}
-univ <- read_csv("/Users/markbruner/Google Drive/MSBA/Machine Learning/mbruner3/ML_mbruner3/Assignment 4/Universities.csv")
+univ <- read_csv("Universities.csv")
 str(univ) # showing intitial structure of the data before the changes.
 ```
 

@@ -6,22 +6,22 @@ output: html_document
 ---
 
 ## WHAT MAKES A CEREAL HEALTHY? A RECOMMENDATION
-A school wants me to recommend a set of cereals that are healthy. I am using the USDA, FDA, and other reputable sources to determine the attributes of a healthy cereal.I will state my assumptions of what is considered healthy below and will be using those as a guide for determining types of clusters.
+I am using the USDA, FDA, and other reputable sources to determine the attributes of a healthy cereal.I will state my assumptions of what is considered healthy below and will be using those as a guide for determining the types of clusters and to assist my recommendations.
 
 **HEALTHY GUIDELINES**
-* **Sugar content:** .25g of sugar for every 4g of cereal. _(**Reference**: https://www.fns.usda.gov/tn/choose-breakfast-cereals-are-lower-sugar)_
 
-* **Fiber at least 3 grams per serving** (using this reference for this measure since it was more difficult to find a specific number to use.)
-_(**Reference**: https://foodcorps.org/cms/assets/uploads/2018/01/Healthy-School-Program-Resource-Guide-1-11.pdf)_
+* **Sugar content:** .25g of sugar for every 4g of cereal. 
+  + (**Reference**: https://www.fns.usda.gov/tn/choose-breakfast-cereals-are-lower-sugar)
+
+* **Fiber at least 3 grams per serving** 
+  + (**Reference**: https://foodcorps.org/cms/assets/uploads/2018/01/Healthy-School-Program-Resource-Guide-1-11.pdf)
 
 * **Sodium content:**
-  * Low sodium: 5% or less per serving size
-  * High sodium: 20% or more per serving size
-  _(**Reference**: https://www.fda.gov/food/nutrition-education-resources-materials/sodium-your-diet)_
+  + Low sodium: 5% or less per serving size
+  + High sodium: 20% or more per serving size
+  + (**Reference**: https://www.fda.gov/food/nutrition-education-resources-materials/sodium-your-diet)
 
-**NOTE** I do not include fat content because fat can be healthy. Since the type of fats are not included I am not going to use that as a factor for healthy or unhealthy. Also, vitamins are listed together and not separately so it is harder to determine healthy levels/types. In addition, many cereals add vitamins to the cereals but are high in sugar so probably not a great measure. Lastly, if the cereal has no vitamins that could be helpful but I think the above measures are better for evaluating healthy cereals from unhealthy. 
-
-These guidelines may change as I inspect the clusters and data but these initial guides are a helpful foundation.
+**NOTE** I do not include fat content because fat can be healthy depending on the type which isn't stated in the dataset. Also, vitamins are not broken into types in this dataset so it is difficult to use that as an indicator since many cereals add vitamins.
 
 ```{r echo = FALSE}
 # Used to clear out the Global Environment.
@@ -29,7 +29,6 @@ rm(list=ls())
 ```
 
 ```{r, message = FALSE}
-# List of packages used for this project.
 library(tidyverse)
 library(caret)
 library(factoextra)
@@ -40,171 +39,657 @@ set.seed(15)
 ```
 
 ```{r}
-# Changed the column types to better represent the types in the variables.
-cereal <- read_csv("Cereals.csv", col_types = c("cffiiiiddiiifddd"))
+# Changed the column types to better represent the types in the columns.
+cereal <- read_csv("Cereals.csv", 
+                   col_types = c("cffiiiiddiiifddd"))
 ```
 
-```{r}
-# Looking at the overall structure of the dataset and for any variables needing to be renamed, reclassified, or one hot encoded.
+```{r, echo=FALSE, include=FALSE}
 head(cereal)
 tail(cereal)
 str(cereal)
+```
 
+
+```{r, echo=FALSE}
 # Determining any missing values and in which columns they are located.
 colMeans(is.na(cereal))
 ```
 
-Carbo, sugars, and potass are the only variables with missing values. It makes the most sense to simply remove them since it will only be about 3 cereals (rows). Also, noticed that the data for weight measurement is mixed. Going to convert the weight measurement to grams as well as the cups column. Using 201.6g per cup and 453.6g per lbs (it seems that the weight column is in lbs.). Normalizing will remove these measurements but I will need to compare clusters later, pre-normalization, so this conversion will help me later. Also, the USDA has different levels for healthy amounts of sugars depending on the serving size in grams.
+Carbo, sugars, and potass are the only variables with missing values. It makes the most sense to simply remove them since it will only be about 3 cereals (rows). Also, I noticed that the data for weight measurement is mixed using imperial and metric based measurements (cups/lbs/ounces vs. grams). Going to convert the weight measurement to grams as well as the cups column. Using 201.6g per cup and 453.6g per lbs (it seems that the weight column is in lbs. source: https://www.metric-conversions.org/weight/ounces-to-grams.htm). Normalizing will remove these measurements but I will need to compare clusters later, pre-normalization, so this conversion will help me later. Also, the USDA has different levels for healthy amounts of sugars depending on the serving size in grams.
 
 ```{r}
-# Converted cups/weights to grams.
+# Converted cups/lbs/ounces to grams.
 cereal %>% 
-  mutate(cups = cups * 201.6, weight = weight * 453.6) %>% 
+  mutate(cups = cups * 201.6, 
+         weight = weight * 453.6) %>% 
   rename(serving_size = cups) -> cereal
 ```
 
-### Normalizing Dataset
+## One Hot Encoding Variables
 ```{r}
-# normalized the dataset before removing rows with missing values so I can use the values in those rows to help get closer to the "true" mean and variance.
-norm <- preProcess(cereal, method = "scale", "center")
+# One Hot Encoding "shelf" variable so I can include it in the euclidean meaurement for distance between points.
+cereal <- dummy_cols(cereal, 
+                     select_columns = c("shelf"), 
+                     remove_first_dummy = FALSE, 
+                     remove_selected_columns = TRUE)
 ```
 
+## Normalizing Dataset
+```{r}
+# Normalized the dataset before removing any data so I can include as much data as possible to get closer to the true mean and variance in the dataset. 
+norm <- preProcess(cereal, 
+                   method = c("scale", "center"))
+
+# Normalizing the entire dataset (before cleaning it) due to the magnitudes and measurements being different (calories, rating, grams, etc...). I want to remove those so that certain variables do not show as being weighted more
+cereal_norm <- predict(norm, cereal) 
+
+summary(cereal_norm)
+```
+
+Looking at the structure of each variable, most of them look to be fairly normally distributed as the means are relatively close to the medians. Some variables have a larger max value, but it is to be expected since some cereals have more of a specific variable, like fiber or vitamins.
 
 ```{r}
-# Removed the rows with missing values.
-complete <- cereal[complete.cases(cereal), ] 
-colMeans(is.na(complete))
+# I decided to remove the rows with missing values since it was only 3 cereals or less than 5% of the dataset.
+cereal_norm <- cereal_norm[complete.cases(cereal_norm), ] 
+colMeans(is.na(cereal_norm))
 ```
 
 ```{r}
-# One hot encoding of "type" and "shelf" variables.
-complete <- dummy_cols(complete, select_columns = c("type", "shelf"), remove_first_dummy = FALSE, remove_selected_columns = TRUE)
+#  I realized that the only hot cereal remaining in the dataset was "Maypo" after removing the rows with missing values. Removing "Maypo" would allow me to remove the column eliminating a variable. Also, after keeping Maypo in the dataset and comparing the dendrograms, for k > 1, they all kept "Maypo" in its own branch/leaf. For those reasons, I decided to remove the cereal and variable "type".
+
+cereal_norm <- cereal_norm[-42, -3]
 ```
 
+## Outliers are Informative in this Dataset
+```{r}
+boxplot(cereal_norm[, 3:17])
+
+cereal_norm %>% 
+  filter(calories> 1 & weight > 0) %>% 
+  select(name, sugars, shelf_3, rating)
+```
+
+After investigating the outliers in this datset, they will be informative for clustering. For example, calories and weight outliers are the same type of cereals. These cereals all appear on the same shelf abnd have lower ratings in addition to having higher calories and weight (see above). Surprisingly, many of them have higher sugar levels compared to the other cereals, however, it could be due to the dried fruits which adds to the heavier weight of the cereal as well.
+
+## Possible Relationships in the Dataset
+```{r}
+cor(cereal_norm[, 3:17]) -> cor_cereal
+corrplot::corrplot(cor_cereal)
+```
+
+* **Positively Correlated**
+  + Fiber and potassium have a high correlation to one another,
+  + Calorie to weight and sugar,
+  + Fiber to protein, potassium, fiber, and rating
+
+* **Negatively Correlated**
+  + Rating to calories and sugars
+
+**Summary**
+Most of the significantly correlated variables intuitively makes sense like ratings being positively correlated to fiber as those tend to be considered "healthier" cereals and those with higher calories/sugars had a lower rating. Also, interestingly it seems shelf 3 tends to have cereals with higher levels of potassium, fiber, and protein. Shelf 2 seems to have cereals with higher sugar, which depending on the height of the shelves could make sense due to the height of a average child riding in a cart or walking in the cereal aisle. I will have to explore below why potassium is related to fiber and protein. I found studies on the relationship between sodium and potassium but nothing explicitly relating it to protein and fiber. 
 
 
 ```{r}
-# Normalizing compete df.
-norm <- preProcess(complete, method = c("scale", "center"))
-complete <- predict(norm, complete)
-summary(complete)
+cereal_norm %>% 
+  filter(potass > 2 & fiber > 1.5) # Bran based cereals have a highest potassium levels and also tend to have highest amounts of protein. 
 ```
 
+## Determining a value for K.
 ```{r}
-rownames(complete) <- complete$name
-d <- dist(complete, method = "euclidean")
+# these 
+fviz_nbclust(cereal_norm[, 3:17], FUN = hcut, method = "wss")
+fviz_nbclust(cereal_norm[, 3:17], FUN = hcut, method = "silhouette")
+```
 
-# Hierarchical clustering using Complete Linkage, Single Linkage, Average Linkage, and Ward. Using agnes() to obtain the AC or cluster structure strength and using hclust() to plot dendrogram.
+I am going to use k = 6 since I want to prioritze tighter clusters (wss) because I want to find similiar cereals while also having more separate clusters (silhouette). For the silhouette, the value at k = 6 isn't much lower than at 10. However, I don't want too many clusters so going above 6 with such a small dataset. I will adjust k if needed once I inspect the dendrograms.
+
+```{r, message=FALSE, warning=FALSE}
+# Set the rownames for the dendrograms.
+rownames(cereal_norm) <- cereal_norm$name
+# Finding the distance using euclidean method.
+d <- get_dist(cereal_norm, 
+              method = "euclidean")
+```
+
+## Why I am using Hierachical Clustering
+### K-means Clustering
+K-means clustering algorithm is based on the number of clusters you choose. For example, let's say that you want 3 clusters. K-means randomly chooses 3 starting points each representing a cluster, then each of those starting points chooses the closest data point based on a distance calculation (see above code). Those two points for each cluster forms the 3 new clusters and form a centroid (the average of the two points). The algorithm then starts again for choosing a third point to add to each cluster and then continues that pattern until all points are in each of the 3 clusters. 
+
+### Hierarchical Clustering
+Hierarchical Clustering can begin with the entire dataset, then splits into two clusters, and continues splitting into smaller and smaller clusters, until all data points are paired with another point or by itself. The end of the hierarchical clustering is called leaves and the partitions above the leaves are called branches. This method is called Diversive Analysis Clustering or DIANA. 
+
+The other approach is to reverse this process by starting with the leaves and reversing the above process until all points are a single cluster. This method is called Agglomerative Nesting or AGNES. 
+
+### Hierarchical Clustering is better for this problem.
+The best method for this problem would be Hierarchical clustering. K-Means tends to favor more globular clusters and it only has one method on how the clusters are formed. Hierarchical clusters have many more methods to control how we can link the data to form the clusters. This will be more helpful since I already am very familiar with the types of cereals in this dataset and inspecting the different methods for clustering in the dendrogram will allow me to choose the best way to cluster the cereals for want I want to achieve for the schools. I am favoring more control on the clusters that are formed. 
+
+# Hierarchical Analysis of Cereals
+
+## Single Linkage: The Worst Linkage
+```{r, message=FALSE}
+# Hierarchical clustering using cereal_norm Linkage, Single Linkage, Average Linkage, and Ward's Method. Using agnes() to obtain the AC or cluster structure strength and using hclust() to plot dendrogram.
+
+# Using "dendextend" to plot more dynamic dendrograms.
 library(dendextend)
-hc_comp <- hclust(d, method = "complete")
-dend_comp <- as.dendrogram(hc_comp)
 
+# creating a dissimilarity matrix based on euclidean distance using "complete linkage" method to create the dendrogram.
+hc <- hclust(d, method = "single")
+
+# Converting hclust to a dendrogram class so I can visualize it.
+dend <- as.dendrogram(hc)
+
+# Setting margins for the graph.
 par(mar=c(10,1,1,1))
-dend_comp %>%
-  set("labels_col", value = c("skyblue","firebrick", "orange", "grey", "blue", "green", "purple", "pink"), k=7) %>%
-  set("branches_k_color", value = c("skyblue","firebrick", "orange", "grey", "blue", "green", "purple", "pink"), k = 7) %>%
-  set("nodes_cex", 0.7) %>% 
-  set("labels_cex", .6) %>% 
-  plot(axes=FALSE)
-```
 
-
-```{r}
-hc_single <- hclust(d, method = "single")
-dend_single <- as.dendrogram(hc_single)
-par(mar=c(10,1,1,1))
-dend_single %>%
-  set("labels_col", value = c("skyblue","firebrick", "orange", "grey", "blue", "green", "purple", "pink"), k=7) %>%
-  set("branches_k_color", value = c("skyblue","firebrick", "orange", "grey", "blue", "green", "purple", "pink"), k = 7) %>%
-  set("nodes_cex", 0.7) %>% 
-  set("labels_cex", .6) %>% 
-  plot(axes=FALSE)
-```
-
-```{r}
-hc_ave <- hclust(d, method = "ave")
-dend_ave <- as.dendrogram(hc_ave)
-par(mar=c(10,1,1,1))
-dend_ave %>%
-  set("labels_col", value = c("skyblue","firebrick", "orange", "grey", "blue", "green", "purple", "pink"), k=7) %>%
-  set("branches_k_color", value = c("skyblue","firebrick", "orange", "grey", "blue", "green", "purple", "pink"), k = 7) %>%
-  set("nodes_cex", 0.7) %>% 
-  set("labels_cex", .6) %>% 
-  plot(axes=FALSE)
-```
-
-```{r}
-hc_ward <- hclust(d, method = "ward.D2")
-dend_ward <- as.dendrogram(hc_ward)
-par(mar=c(10,1,1,1))
-dend_ward %>%
-  set("labels_col", value = c("skyblue","firebrick", "orange", "pink", "purple", "green", "steelblue"), k=7) %>%
-  set("branches_k_color", value = c("skyblue","firebrick", "orange", "pink", "purple", "green", "steelblue"), k = 7) %>%
-  set("nodes_cex", 0.7) %>% 
-  set("labels_cex", .6) %>% 
-  plot(axes=TRUE)
-
-```
-
-
-
-```{r}
-test_split <- createDataPartition(complete$sugars, p = .6, list = FALSE)
-test <- complete[test_split, ]
-
-row.names(test) <- test$name
-d2 <- dist(test, method = "euclidean")
-
-hc_test <- hclust(d2, method = "ward")
-dend_test <- as.dendrogram(hc_test)
-par(mar=c(10,1,1,1))
-dend_test %>%
-  set("labels_col", value = c("skyblue","firebrick", "orange", "pink", "purple", "green", "steelblue"), k=7) %>%
-  set("branches_k_color", value = c("skyblue","firebrick", "orange", "pink", "purple", "green", "steelblue"), k = 7) %>%
+# Setting labels, branch and label colors, & label size. I repeat the above and below steps for the "average linkage", "complete linkage", and "ward method" for creating the dendrograms. I will not show the code as the only difference is the method is equal to the listed type of linkage.
+dend %>%
+  set("labels_col", 
+      value = c("skyblue",
+                "firebrick", 
+                "orange", 
+                "grey", 
+                "blue", 
+                "green"
+                ), 
+      k = 6
+      ) %>%
+  set("branches_k_color", 
+      value = c("skyblue",
+                "firebrick", 
+                "orange", "grey", 
+                "blue", 
+                "green"
+                ), 
+      k = 6
+      ) %>%
   set("nodes_cex", 0.7) %>% 
   set("labels_cex", .6) %>% 
   plot(axes=FALSE)
 
-
+# Creating a clustering visualization to see the groupings in 2-dimensions for clustering structure comparison.
+sub_group <-  cutree(hc, k = 6)
+fviz_cluster(list(data = cereal_norm[,3 :17], cluster = sub_group))
 ```
 
+Cluster 2 contains about 85% of all the cereals. The cereals in that cluster are of different types like Trix and Great Grains Pecans. This method did not do a good job clustering the cereals to help me recommend healthy types of cereals. 
 
-```{r}
-# Plotting each of the HC to see what their dendrograms look like so I can make a better determination of cluster numbers.
+## Average Linkage: Better than Single
+```{r, echo = FALSE}
+hc <- hclust(d, method = "average")
 
-dend_list
+dend <- as.dendrogram(hc)
 
-dend_list <- dendlist(dend_ward, dend_test)
+par(mar=c(10,1,1,1))
 
-tanglegram(dend_ward, dend_test,
-  highlight_distinct_edges = FALSE, # Turn-off dashed lines
-  common_subtrees_color_lines = FALSE, # Turn-off line colors
-  common_subtrees_color_branches = TRUE, # Color common branches 
-  main = paste("entanglement =", round(entanglement(dend_list), 2))
-  )
+dend %>%
+  set("labels_col", 
+      value = c("skyblue",
+                "firebrick", 
+                "orange", 
+                "grey", 
+                "blue", 
+                "green"
+                ), 
+      k = 6
+      ) %>%
+  set("branches_k_color", 
+      value = c("skyblue",
+                "firebrick", 
+                "orange", 
+                "grey", 
+                "blue", 
+                "green"
+                ), 
+      k = 6
+      ) %>%
+  set("nodes_cex", 0.7) %>% 
+  set("labels_cex", .6) %>% 
+  plot(axes=FALSE)
 
-fviz_nbclust(complete, FUN = hcut, method = "wss")
-fviz_nbclust(complete, FUN = hcut, method = "silhouette")
-gap_stat <- clusGap(complete[, 3:19], FUN = hcut, nstart = 20, K.max = 10, B = 70)
-fviz_gap_stat(gap_stat)
+sub_group <-  cutree(hc, k = 6)
+fviz_cluster(list(data = cereal_norm[,3 :17], cluster = sub_group))
 ```
 
-**See https://uc-r.github.io/hc_clustering** (remove!!)
+This linkage method looks very similar to single with the exception of the larger cluster having a few small clusters inside of it. Again I run into the same problem as with single linkage.
 
-## Cluster Assessment
+## Complete Linkage: Second Best Linkage Method
+```{r, echo = FALSE}
 
+hc <- hclust(d,
+            method = "complete")
+
+dend <- as.dendrogram(hc)
+
+par(mar=c(10,1,1,1))
+
+dend %>%
+  set("labels_col", 
+      value = c("skyblue",
+                "firebrick", 
+                "orange", 
+                "grey", 
+                "blue", 
+                "green"
+                ),
+      k = 6
+      ) %>%
+  set("branches_k_color", 
+      value = c("skyblue",
+                "firebrick", 
+                "orange", 
+                "grey", 
+                "blue", 
+                "green"
+                ), 
+      k = 6
+      ) %>%
+  set("nodes_cex", 0.7) %>% 
+  set("labels_cex", 0.6) %>% 
+  plot(axes=FALSE) 
+
+sub_group <-  cutree(hc, k = 6)
+fviz_cluster(list(data = cereal_norm[, 3:17], cluster = sub_group))
+```
+
+The clusters look fairly separated and fairly uniformly distributed. Cluster 6 overlaps more significantly with 3 and 5. However, looking closer at the dendrogram it does seem that it did a good job grouping the cereals into like categories. 
+
+## Ward's Method: The Best Method
+```{r, echo=FALSE}
+hc<- hclust(d, method = "ward.D2")
+
+dend <- as.dendrogram(hc)
+
+par(mar=c(10,1,1,1))
+
+dend %>%
+  set("labels_col", 
+      value = c("skyblue",
+                "firebrick", 
+                "orange", 
+                "grey", 
+                "blue", 
+                "green"
+                ), 
+      k=6
+      ) %>%
+  
+  set("branches_k_color", 
+      value = c("skyblue",
+                "firebrick", 
+                "orange", 
+                "grey", 
+                "blue", 
+                "green"
+                ), 
+      k = 6
+      ) %>%
+  set("nodes_cex", 0.7) %>% 
+  set("labels_cex", .6) %>% 
+  plot(axes=FALSE)
+
+sub_group <-  cutree(hc, k = 6)
+fviz_cluster(list(data = cereal_norm[,3 :17], cluster = sub_group))
+```
+
+I think Ward's is the best method for the cereal recommendations as the clusters are more separate and compact (except cluster 6). For only having 73 cereals, I think the above dendrogram does a good job of classifying the clusters. For example, All Bran brand cereals are in their own cluster and on the same branch as Grape Nuts, Quaker Oat Squares, etc... While Corn Pops is with Trix and Fruity Pebbles on it's own branch.
+
+## AC Confirms My Analysis
 ```{r}
-# Agglomerative coefficient with Agnes.
-m <- c( "average", "single", "complete", "ward")
-names(m) <- c( "average", "single", "complete", "ward")
+# Agglomerative coefficient with Agnes to determine the strength of the cluster structure.
+m <- c("average", 
+       "single",
+       "complete", 
+       "ward"
+        )
+
+names(m) <- c("average", 
+               "single", 
+               "complete", 
+               "ward")
 
 # function to compute coefficient
 ac <- function(x) {
-  agnes(d, method = x)$ac
+  agnes(d, 
+        method = x)$ac
 }
 
 map_dbl(m, ac)
-
-ward <- agnes(d, method = "ward")
 ```
+
+I am going with the Ward method due to the visualizations and with the strength of the structure being the highest at .905 and due to my analysis aligning with these results as well.
+
+## Test Partitioning: Will the Clusters Have Good Stability?
+```{r, message=FALSE, warning=FALSE}
+# Split the dataset by 50% randomly using the Caret Package.
+test_split <- createDataPartition(cereal_norm$sugars, p = .5, list = FALSE)
+
+test <- cereal_norm[test_split, ]
+
+row.names(test) <- test$name
+```
+
+## Calculating Test Distance
+```{r, message=FALSE, warning=FALSE}
+# If I used the previous one, then I would get the exact same result. I am testing to see how well the clustering algorithm will put the same cereals together in the smaller partition as the larger dataset. If the clusters are more or less the same then that will provide greater evidence that the groupings are stable.
+d2 <- get_dist(test,
+               method = "euclidean")
+```
+
+
+## Ward's Method on Test Datset
+```{r, echo=FALSE}
+hc_test <- hclust(d2, 
+                  method = "ward.D2")
+
+dend_test <- as.dendrogram(hc_test)
+
+par(mar=c(10,1,1,1))
+
+dend_test %>%
+  set("labels_col", value = c("skyblue","firebrick", "orange", "grey", "blue", "green"), k = 6) %>%
+  set("branches_k_color", 
+      value = c("skyblue",
+                "firebrick", 
+                 "orange", 
+                 "grey", 
+                 "blue", 
+                 "green"), 
+      k = 6
+      ) %>%
+  set("nodes_cex", 0.7) %>% 
+  set("labels_cex", .6) %>% 
+  plot(axes=FALSE)
+
+
+sub_group <-  cutree(hc_test, k = 6)
+
+fviz_cluster(list(data = test[,3 :17], cluster = sub_group))
+```
+
+## Clustering Stability is Pretty Good.
+```{r}
+# Looking at the formation of the clusters of the test partition with the original dataset. 
+# Found the intersection of the orginal dataset with the test partition.
+intersect_dend <- intersect_trees(dend1 = dend_test, dend2 = dend)
+
+# Using the dendbackback function in the "dendextend" package to map the two dendrograms back to back.
+dendbackback(
+  intersect_dend[[1]], 
+  intersect_dend[[2]],
+  sort = TRUE,
+  highlight_distinct_edges = FALSE, 
+  common_subtrees_color_lines = TRUE, 
+  common_subtrees_color_branches = TRUE)
+
+intersect_dend_orig <- intersect_dend[[2]]
+```
+
+Looking at the above visualization starting at the leaves (on both sides), you can see it pairs the cereals together the same except for a few. It continues to maintain the groupings until the third iteration but by that time the groups at k = 6 are fairly the same. I believe this shows that the clusters are stable. The algorithm will do what I need it to do which is separate unhealthy cereals from healthy cereals.  
+
+```{r}
+diana <- diana(d)
+
+dend_diana <- as.dendrogram(diana)
+
+par(mar=c(10,1,1,1))
+
+dend_diana %>%
+  set("labels_col", value = c("skyblue","firebrick", "orange", "grey", "blue", "green"), k = 6) %>%
+  set("branches_k_color", 
+      value = c("skyblue",
+                "firebrick", 
+                 "orange", 
+                 "grey", 
+                 "blue", 
+                 "green"), 
+      k = 6
+      ) %>%
+  set("nodes_cex", 0.7) %>% 
+  set("labels_cex", .6) %>% 
+  plot(axes=FALSE)
+
+# Using the dendbackback function in the "dendextend" package to map the two dendrograms back to back.
+dendbackback(
+  dend_diana, 
+  dend,
+  sort = TRUE,
+  highlight_distinct_edges = FALSE, 
+  common_subtrees_color_lines = TRUE, 
+  common_subtrees_color_branches = TRUE)
+```
+
+Performed the agnes hierarchical clustering and compared it with the diana hierarchical clustering to see if the clusters are similar for both methods which also gives evidence that the clusters are stable. Looking above you can see 50 of the 73 or about 70% cereals were grouped the same as agnes. I believe this gives further evidence of clustering stability as two different clustering algorithms formed mostly the same cluster groupings.  
+
+# Healthy Cereal Recommendations
+
+## Cluster Numbers
+```{r}
+# attaching the cluster number of each cereal to the normalized dataset.
+cereal_norm$cluster <- as.factor(cutree(dend, k =6))
+
+# doing the same for the original dataset while also removing the incomplete cereals and "type" column to match the normalized cereal dataset.
+cereal <- cereal[complete.cases(cereal), ]
+cereal <- cereal[-42, -3]
+
+cereal$cluster <- as.factor(cutree(dend, k =6))
+```
+
+## Average Clusters for Comparison
+```{r, warning=FALSE, message=FALSE}
+# Putting cereals into their clusters and then finding the average of each cluster so I can better compare the clusters to one another and determine what kind of cereals are in each cluster.
+cereal_norm %>% 
+  filter(cluster == 1) %>% 
+  summarise_all(mean) -> cl1_ave
+
+cereal_norm %>% 
+  filter(cluster == 2) %>% 
+  summarise_all(mean) -> cl2_ave
+
+cereal_norm %>% 
+  filter(cluster == 3) %>% 
+  summarise_all(mean) -> cl3_ave
+
+cereal_norm %>% 
+  filter(cluster == 4) %>% 
+  summarise_all(mean) -> cl4_ave
+
+
+cereal_norm %>% 
+  filter(cluster == 5) %>% 
+  summarise_all(mean) -> cl5_ave
+
+
+cereal_norm %>% 
+  filter(cluster == 6) %>% 
+  summarise_all(mean) -> cl6_ave
+
+
+cluster_mean <- as.data.frame(rbind(cl1_ave, cl2_ave, cl3_ave, cl4_ave, cl5_ave, cl6_ave))
+
+cluster_mean %>% 
+  relocate(shelf_1, shelf_2, shelf_3, sugars, fiber, potass) -> cluster_mean
+cluster_mean <- cluster_mean[ ,c(-7, -8, -18)]
+
+# Using "reshape2" package to rotate the average cluster dataset to three columns "name", "variable", and "value" so that I can then plot this dataset onto graphs to better visualize the comparisons of each cluster.
+library(reshape2)
+cluster_mean <- melt(cluster_mean)
+cluster_mean$cluster <- c(1,2,3,4,5,6)
+```
+
+```{r}
+# Based on the differenct recommendations for healthy amounts of fiber, sodium, and sugar. I am adding those recommendations to the original cereal dataset so I can use them in my recommendations and for comparisons of clusters.
+
+# Healthy sugar level variable.
+cereal %>% 
+  mutate(sugar_lvl = serving_size/4*.25) -> cereal
+
+cereal$healthy_sugar_lvl <- ifelse(cereal$sugars <= cereal$sugar_lvl, yes = 1, no = 0)
+
+# Healthy fiber levels variable.
+cereal$healthy_fiber_lvl <- ifelse(cereal$fiber >= 3, yes = 1, no = 0)
+
+# Healthy and high sodium levels variable.
+cereal$healthy_sodium_lvl <- ifelse(cereal$sodium/cereal$serving_size <= .05, yes = 1, no = 0)
+
+cereal$high_sodium_lvl <- ifelse(cereal$sodium/cereal$serving_size >= .2, yes = 1, no = 0)
+```
+
+
+## Cluster Comparisons
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(
+  cluster_mean,
+  aes(variable, value, group = cluster, color = factor(cluster))
+) +
+  geom_line() +
+  scale_color_viridis_d() +
+  labs(x = "Variables", y = "Normalized Value", title = "One Possibly Recommended, One Not Recommended" ) +
+  theme(legend.position = "right") +
+  theme(axis.text.x = element_text(
+    colour = "grey20", size = 12, angle = 90, hjust = 0.5, vjust = 0.5),
+                        axis.text.y = element_text(colour = "grey20", size = 12),
+                        strip.text = element_text(face = "italic"),
+                        text = element_text(size = 16)
+    ) + 
+  scale_color_manual(name = "Cluster", values = c("#FF0000", "#17A589", "#D3D3D3", "#D3D3D3", "#D3D3D3", "#D3D3D3"))
+```
+
+* <span  style="color: #FF0000;">**Cluster 1: Could be Recommended Cereals**</span><br>
++ **located_ on shelf 3** <br>
+<span  style="color: #FF0000;">+ **Attributes:**
+  + lower sugar
+  + highest fiber
+  + lowest calories
+  + lowest carbs
+  + highest protein
+  + highest rating </span> 
+
+* <span  style="color: #17A589;">**Cluster 2: Not Recommended Cereals**</span><br>
++ **located on shelf 3**  <br>
+<span  style="color: #17A589;">+ **Attributes:**
+  + higher calories
+  + lower rating </span>
+ <br>
+```{r, echo=FALSE}
+cereal %>% 
+  filter(cluster == 1) %>% 
+  select(name, cluster, healthy_sugar_lvl, healthy_fiber_lvl, high_sodium_lvl)
+```
+
+All of **cluster 1** cereals all have high sodium levels. Could be on the recommendation list due to the other benefits like protein and fiber. However, kids probably would not typically choose these cereals. 
+
+```{r, echo = FALSE}
+cereal %>% 
+  filter(cluster == 2) %>% 
+  select(name, cluster, healthy_sugar_lvl, healthy_fiber_lvl, high_sodium_lvl)
+```
+
+All except one cereal of **cluster 2** cereals have high sodium and 11 out of 18 cereals have high sugar levels. Only 11 of the cereals have good fiber as well. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(
+  cluster_mean,
+  aes(variable, value, group = cluster, color = factor(cluster))
+) +
+  geom_line() +
+  scale_color_viridis_d() +
+  labs(x = "Variables", y = "Normalized Value", title = "Not Recommended" ) +
+  theme(legend.position = "right") +
+  theme(axis.text.x = element_text(
+    colour = "grey20", size = 12, angle = 90, hjust = 0.5, vjust = 0.5),
+                        axis.text.y = element_text(colour = "grey20", size = 12),
+                        strip.text = element_text(face = "italic"),
+                        text = element_text(size = 16)
+    ) + 
+  scale_color_manual(name = "Cluster", values = c("#D3D3D3", "#D3D3D3", "#FF0000", "#17A589", "#D3D3D3", "#D3D3D3"))
+```
+
+* <span  style="color: #FF0000;">**Cluster 3: Not Recommended Cereals**</span><br>
+  + **located on shelf 1**<br>
+   <span  style="color: #FF0000;"> + **Attributes:**
+    + lower sugars
+    + lower fiber
+    + highest sodium
+    + larger serving size </span>
+
+
+* <span  style="color: #17A589;">**Cluster 4: Not Recommended Cereal**</span><br>
+  + **located on shelf 2**<br>
+    <span  style="color: #17A589;">+ **Attributes:**
+    + highest sugar
+    + lowest fiber
+    + lowest protein
+    + lowest rating</span>
+
+```{r}
+cereal %>% 
+  filter(cluster == 3) %>% 
+  select(name, cluster,  healthy_sugar_lvl, healthy_fiber_lvl, high_sodium_lvl)
+```
+
+13 of the cereals in **cluster 3** have healthy sugar levels. 14 cereals **do not** have healthy fiber levels and they all have high sodium. The only factor that cluster 3 has going for it is the sugar levels but I don't believe that is enough to recommend it as the other "unhealthy" factors outweigh that benefit.
+
+```{r}
+cereal %>% 
+  filter(cluster == 4) %>% 
+  select(name, cluster, healthy_sugar_lvl, healthy_fiber_lvl, high_sodium_lvl)
+```
+
+Only 6 of the cereals in **cluster 4** have healthy sugar levels and none of them have healthy fiber or sodium levels. Again as most of the cereals have high sugar, low fiber, and high sodium levels I would not recommend the cereals in this cluster.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(
+  cluster_mean,
+  aes(variable, value, group = cluster, color = factor(cluster))
+) +
+  geom_line() +
+  scale_color_viridis_d() +
+  labs(x = "Variables", y = "Normalized Value", title = "One Recommended and One Not Recommended" ) +
+  theme(legend.position = "right") +
+  theme(axis.text.x = element_text(
+    colour = "grey20", size = 12, angle = 90, hjust = 0.5, vjust = 0.5),
+                        axis.text.y = element_text(colour = "grey20", size = 12),
+                        strip.text = element_text(face = "italic"),
+                        text = element_text(size = 16)
+    ) + 
+  scale_color_manual(name = "Cluster", values = c("#D3D3D3", "#D3D3D3", "#D3D3D3", "#D3D3D3","#FF0000", "#17A589"))
+```
+
+* <span  style="color: #FF0000;">**Cluster 5: Recommended Cereals**</span><br>
+  + **located on shelf 3**<br>
+    <span  style="color: #FF0000;">+ **Attributes:**
+    + lower calories
+    + lowest sodium
+    + higher rating</span>
+
+* <span  style="color: #17A589;">**Cluster 6: Not Recommended Cereals**</span><br>
+  + **located on shelf 3**<br>
+   <span  style="color: #17A589;"> + **Attributes:**
+    + lower sugar
+    + low fiber
+    + higher sodium
+    + higher vitamins
+    + large serving size</span>
+
+```{r}
+cereal %>% 
+  filter(cluster == 5) %>% 
+  select(name, cluster, healthy_sugar_lvl, healthy_fiber_lvl, healthy_sodium_lvl)
+```
+
+All of **cluster 5** cereals have healthy sugar levels, 10 of the 17 cereals have healthy fiber levels, and 8 have health sodium levels. Again while not perfect, these are cereals that kids would eat and compared to the other clusters, the cereals in this cluster are overall the best. It also has a wide variety of cereals for kids to choose from and for the school to rotate.
+
+```{r}
+cereal %>% 
+  filter(cluster == 6) %>% 
+  select(name, cluster, healthy_sugar_lvl, high_sodium_lvl, healthy_fiber_lvl)
+```
+
+All of **cluster 6** cereals have healthy sugar levels but have high sodium and most do not have enough fiber. Although they do have high vitamins which could be a benefit but hard to determine from this dataset. Overall I don't believe that the healthy sugar levels and high vitamins are enough to recommend as the sodium levels are the highest and the fiber is lower compared to the other clusters.
+
+
+## Cereal Recommendation
+
+I recommend **cluster 5 cereals*** for the school based on the reasons listed above and I believe kids will enjoy them compared to cluster 1. Cluster 1 can be included but generally I don't believe kids would choose those cereals and for that reason I would not recommend them. <br>
 

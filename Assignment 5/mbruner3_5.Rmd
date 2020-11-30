@@ -66,15 +66,6 @@ cereal %>%
   rename(serving_size = cups) -> cereal
 ```
 
-## One Hot Encoding Variables
-```{r}
-# One Hot Encoding "shelf" variable so I can include it in the euclidean meaurement for distance between points.
-cereal <- dummy_cols(cereal, 
-                     select_columns = c("shelf"), 
-                     remove_first_dummy = FALSE, 
-                     remove_selected_columns = TRUE)
-```
-
 ## Normalizing Dataset
 ```{r}
 # Normalized the dataset before removing any data so I can include as much data as possible to get closer to the true mean and variance in the dataset. 
@@ -85,6 +76,15 @@ norm <- preProcess(cereal,
 cereal_norm <- predict(norm, cereal) 
 
 summary(cereal_norm)
+```
+
+## One Hot Encoding Variables
+```{r}
+# One Hot Encoding "shelf" variable so I can include it in the euclidean meaurement for distance between points.
+cereal_norm <- dummy_cols(cereal_norm, 
+                     select_columns = c("shelf"), 
+                     remove_first_dummy = FALSE, 
+                     remove_selected_columns = TRUE)
 ```
 
 Looking at the structure of each variable, most of them look to be fairly normally distributed as the means are relatively close to the medians. Some variables have a larger max value, but it is to be expected since some cereals have more of a specific variable, like fiber or vitamins.
@@ -127,7 +127,7 @@ corrplot::corrplot(cor_cereal)
   + Rating to calories and sugars
 
 **Summary**
-Most of the significantly correlated variables intuitively makes sense like ratings being positively correlated to fiber as those tend to be considered "healthier" cereals and those with higher calories/sugars had a lower rating. Also, interestingly it seems shelf 3 tends to have cereals with higher levels of potassium, fiber, and protein. Shelf 2 seems to have cereals with higher sugar, which depending on the height of the shelves could make sense due to the height of a average child riding in a cart or walking in the cereal aisle. I will have to explore below why potassium is related to fiber and protein. I found studies on the relationship between sodium and potassium but nothing explicitly relating it to protein and fiber. 
+Most of the significantly correlated variables intuitively makes sense like ratings being positively correlated to fiber as those tend to be considered "healthier" cereals and those with higher calories/sugars had a lower rating. Also, interestingly it seems shelf 3 tends to have cereals with higher levels of potassium, fiber, and protein. Shelf 2 seems to have cereals with higher sugar, low amounts of protein, lower amounts of fiber. Depending on the height of the shelves could make sense due to the height of a average child riding in a cart or walking in the cereal aisle. I will have to explore below why potassium is related to fiber and protein. I found studies on the relationship between sodium and potassium but nothing explicitly relating it to protein and fiber. 
 
 
 ```{r}
@@ -251,7 +251,7 @@ sub_group <-  cutree(hc, k = 6)
 fviz_cluster(list(data = cereal_norm[,3 :17], cluster = sub_group))
 ```
 
-This linkage method looks very similar to single with the exception of the larger cluster having a few small clusters inside of it. Again I run into the same problem as with single linkage.
+This linkage method looks very similar to single with the exception of the larger cluster having a few small clusters inside of it. It does seem to be an improvement over single linkage as there is more cluster separation and clusters are more compact, comparatively.
 
 ## Complete Linkage: Second Best Linkage Method
 ```{r, echo = FALSE}
@@ -292,7 +292,7 @@ sub_group <-  cutree(hc, k = 6)
 fviz_cluster(list(data = cereal_norm[, 3:17], cluster = sub_group))
 ```
 
-The clusters look fairly separated and fairly uniformly distributed. Cluster 6 overlaps more significantly with 3 and 5. However, looking closer at the dendrogram it does seem that it did a good job grouping the cereals into like categories. 
+The clusters look fairly separated and fairly uniformly distributed. Cluster 5 overlaps more significantly with 4 and 2. However, looking closer at the dendrogram it does seem that it did a good job grouping the cereals into like categories. 
 
 ## Ward's Method: The Best Method
 ```{r, echo=FALSE}
@@ -332,7 +332,7 @@ sub_group <-  cutree(hc, k = 6)
 fviz_cluster(list(data = cereal_norm[,3 :17], cluster = sub_group))
 ```
 
-I think Ward's is the best method for the cereal recommendations as the clusters are more separate and compact (except cluster 6). For only having 73 cereals, I think the above dendrogram does a good job of classifying the clusters. For example, All Bran brand cereals are in their own cluster and on the same branch as Grape Nuts, Quaker Oat Squares, etc... While Corn Pops is with Trix and Fruity Pebbles on it's own branch.
+I think Ward's is the best method for the cereal recommendations as the clusters are more separate and compact (except cluster 3 which overlaps 5). For only having 73 cereals, I think the above dendrogram does a good job of classifying the clusters. For example, All Bran brand cereals are in their own cluster and on the same branch as Grape Nuts, Quaker Oat Squares, etc... While Corn Pops is with Trix and Fruity Pebbles on it's own branch.
 
 ## AC Confirms My Analysis
 ```{r}
@@ -357,7 +357,7 @@ ac <- function(x) {
 map_dbl(m, ac)
 ```
 
-I am going with the Ward method due to the visualizations and with the strength of the structure being the highest at .905 and due to my analysis aligning with these results as well.
+I am going with the Ward method due to the visualizations and with the strength of the structure being the highest at .90 and due to my analysis aligning with these results as well.
 
 ## Test Partitioning: Will the Clusters Have Good Stability?
 ```{r, message=FALSE, warning=FALSE}
@@ -459,7 +459,7 @@ dendbackback(
   common_subtrees_color_branches = TRUE)
 ```
 
-Performed the agnes hierarchical clustering and compared it with the diana hierarchical clustering to see if the clusters are similar for both methods which also gives evidence that the clusters are stable. Looking above you can see 50 of the 73 or about 70% cereals were grouped the same as agnes. I believe this gives further evidence of clustering stability as two different clustering algorithms formed mostly the same cluster groupings.  
+Performed the agnes hierarchical clustering and compared it with the diana hierarchical clustering to see if the clusters are similar for both methods which also gives evidence that the clusters are stable. Looking above you can see 52 of the 73 or about 70% cereals were grouped the same as agnes. I believe this gives further evidence of clustering stability as two different clustering algorithms formed mostly the same cluster groupings.  
 
 # Healthy Cereal Recommendations
 
@@ -517,6 +517,7 @@ cluster_mean <- melt(cluster_mean)
 cluster_mean$cluster <- c(1,2,3,4,5,6)
 ```
 
+
 ```{r}
 # Based on the differenct recommendations for healthy amounts of fiber, sodium, and sugar. I am adding those recommendations to the original cereal dataset so I can use them in my recommendations and for comparisons of clusters.
 
@@ -534,7 +535,6 @@ cereal$healthy_sodium_lvl <- ifelse(cereal$sodium/cereal$serving_size <= .05, ye
 
 cereal$high_sodium_lvl <- ifelse(cereal$sodium/cereal$serving_size >= .2, yes = 1, no = 0)
 ```
-
 
 ## Cluster Comparisons
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -585,7 +585,7 @@ cereal %>%
   select(name, cluster, healthy_sugar_lvl, healthy_fiber_lvl, high_sodium_lvl)
 ```
 
-All except one cereal of **cluster 2** cereals have high sodium and 11 out of 18 cereals have high sugar levels. Only 11 of the cereals have good fiber as well. 
+All except one cereal of **cluster 2** cereals have high sodium and 7 out of 13 cereals have high sugar levels. Only 9 of the cereals have good fiber as well. 
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 ggplot(
@@ -606,21 +606,22 @@ ggplot(
 ```
 
 * <span  style="color: #FF0000;">**Cluster 3: Not Recommended Cereals**</span><br>
-  + **located on shelf 1**<br>
+  + **located on shelves 1 & 2**<br>
    <span  style="color: #FF0000;"> + **Attributes:**
-    + lower sugars
-    + lower fiber
-    + highest sodium
-    + larger serving size </span>
+    + highest sugar
+    + low fiber
+    + lowest protein
+    + lower carbs 
+    + lowest rating </span>
 
 
 * <span  style="color: #17A589;">**Cluster 4: Not Recommended Cereal**</span><br>
-  + **located on shelf 2**<br>
+  + **located on shelves 1 & 3**<br>
     <span  style="color: #17A589;">+ **Attributes:**
-    + highest sugar
+    + lower sugar
     + lowest fiber
-    + lowest protein
-    + lowest rating</span>
+    + higher protein
+    + higher rating</span>
 
 ```{r}
 cereal %>% 
@@ -628,7 +629,7 @@ cereal %>%
   select(name, cluster,  healthy_sugar_lvl, healthy_fiber_lvl, high_sodium_lvl)
 ```
 
-13 of the cereals in **cluster 3** have healthy sugar levels. 14 cereals **do not** have healthy fiber levels and they all have high sodium. The only factor that cluster 3 has going for it is the sugar levels but I don't believe that is enough to recommend it as the other "unhealthy" factors outweigh that benefit.
+13 of the cereals in **cluster 3** have unhealthy sugar levels and none of them have healthy fiber or sodium levels. Kids should not consume these.
 
 ```{r}
 cereal %>% 
@@ -636,7 +637,7 @@ cereal %>%
   select(name, cluster, healthy_sugar_lvl, healthy_fiber_lvl, high_sodium_lvl)
 ```
 
-Only 6 of the cereals in **cluster 4** have healthy sugar levels and none of them have healthy fiber or sodium levels. Again as most of the cereals have high sugar, low fiber, and high sodium levels I would not recommend the cereals in this cluster.
+13 of the cereals in **cluster 4** have healthy sugar levels. 14 cereals **do not** have healthy fiber levels and they all have high sodium. The only factor that cluster 3 has going for it is the sugar levels but I don't believe that is enough to recommend it as the other "unhealthy" factors outweigh that benefit.
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 ggplot(
@@ -656,40 +657,42 @@ ggplot(
   scale_color_manual(name = "Cluster", values = c("#D3D3D3", "#D3D3D3", "#D3D3D3", "#D3D3D3","#FF0000", "#17A589"))
 ```
 
-* <span  style="color: #FF0000;">**Cluster 5: Recommended Cereals**</span><br>
-  + **located on shelf 3**<br>
+* <span  style="color: #FF0000;">**Cluster 5: Not Recommended Cereals**</span><br>
+  + **located on shelves 1 & 3**<br>
     <span  style="color: #FF0000;">+ **Attributes:**
+    + lower sugars
+    + lower fiber
+    + high sodium
+    + high carbs
+    + high vitamins</span>
+
+* <span  style="color: #17A589;">**Cluster 6: Recommended Cereals**</span><br>
+  + **located on shelves 1 & 3**<br>
+   <span  style="color: #17A589;"> + **Attributes:**
+    + loweest sugar
     + lower calories
     + lowest sodium
-    + higher rating</span>
-
-* <span  style="color: #17A589;">**Cluster 6: Not Recommended Cereals**</span><br>
-  + **located on shelf 3**<br>
-   <span  style="color: #17A589;"> + **Attributes:**
-    + lower sugar
-    + low fiber
-    + higher sodium
-    + higher vitamins
-    + large serving size</span>
+    + high rating</span>
 
 ```{r}
 cereal %>% 
   filter(cluster == 5) %>% 
-  select(name, cluster, healthy_sugar_lvl, healthy_fiber_lvl, healthy_sodium_lvl)
+  select(name, cluster, healthy_sugar_lvl, healthy_fiber_lvl, high_sodium_lvl)
 ```
 
-All of **cluster 5** cereals have healthy sugar levels, 10 of the 17 cereals have healthy fiber levels, and 8 have health sodium levels. Again while not perfect, these are cereals that kids would eat and compared to the other clusters, the cereals in this cluster are overall the best. It also has a wide variety of cereals for kids to choose from and for the school to rotate.
+All of **cluster 5** cereals have healthy sugar levels but have high sodium and all but one do not have enough fiber. Although they do have high vitamins which could be a benefit but hard to determine from this dataset. Overall I don't believe that the healthy sugar levels and high vitamins are enough to recommend as the sodium levels are the highest and the fiber is lower compared to the other clusters.
 
 ```{r}
 cereal %>% 
   filter(cluster == 6) %>% 
-  select(name, cluster, healthy_sugar_lvl, high_sodium_lvl, healthy_fiber_lvl)
+  select(name, cluster, healthy_sugar_lvl, healthy_sodium_lvl, healthy_fiber_lvl)
 ```
 
-All of **cluster 6** cereals have healthy sugar levels but have high sodium and most do not have enough fiber. Although they do have high vitamins which could be a benefit but hard to determine from this dataset. Overall I don't believe that the healthy sugar levels and high vitamins are enough to recommend as the sodium levels are the highest and the fiber is lower compared to the other clusters.
+All of **cluster 6** cereals have healthy sugar levels, 7 of the cereals have healthy sodium levels, and 5 have healthy fiber levels. Overall, these are cereals are better for kids than the other cereals. Kids also would eat these cereals. It also has a variety of cereals for kids to choose from and for the school to rotate. 
+
 
 
 ## Cereal Recommendation
 
-I recommend **cluster 5 cereals*** for the school based on the reasons listed above and I believe kids will enjoy them compared to cluster 1. Cluster 1 can be included but generally I don't believe kids would choose those cereals and for that reason I would not recommend them. <br>
+I recommend **cluster 6 cereals*** for the school based on the reasons listed above. However, if the schools needed more cereals for variety, Cluster 4 would be my second recommendation due to the amount of cereals with healthy sugar and fiber levels.<br>
 

@@ -359,9 +359,22 @@ map_dbl(m, ac)
 
 I am going with the Ward method due to the visualizations and with the strength of the structure being the highest at .90 and due to my analysis aligning with these results as well.
 
-## Test Partitioning: Will the Clusters Have Good Stability?
+# Test Partitioning: Clusters have Very Good Stability
+
+### Preparation for Cluster Comparison and Classification
+```{r}
+cereal <- cereal[complete.cases(cereal), ] # removing rows with missing values.
+cereal <- cereal[-42, -3] # removing Maypo and the Type column.
+# I did the above steps that the rows match the normalized dataset. I needed to do this so the cereals in both df match one another and so I can match the cluster number to the correct cereal.
+
+# attaching the cluster number of each cereal to the normalized dataset.
+cereal_norm$cluster <- as.factor(cutree(dend, k = 6))
+cereal$cluster <- as.factor(cutree(dend, k = 6))
+```
+
+## 1. Creating Partitions
 ```{r, message=FALSE, warning=FALSE}
-# Split the dataset by 50% randomly using the Caret Package.
+# Split the dataset by 50% randomly using the Caret Package. I choose 50% because the dataset is small.
 test_split <- createDataPartition(cereal_norm$sugars, p = .5, list = FALSE)
 
 test <- cereal_norm[test_split, ]
@@ -369,15 +382,92 @@ test <- cereal_norm[test_split, ]
 row.names(test) <- test$name
 ```
 
-## Calculating Test Distance
+## 2. Calculating New Distance
 ```{r, message=FALSE, warning=FALSE}
-# If I used the previous one, then I would get the exact same result. I am testing to see how well the clustering algorithm will put the same cereals together in the smaller partition as the larger dataset. If the clusters are more or less the same then that will provide greater evidence that the groupings are stable.
+# If I used the previous one distance calculated on the larger dataset, then I would get the exact same result. I am testing to see how well the clustering algorithm will put the same cereals together in the smaller partition as the larger dataset. If the clusters are more or less the same then that will provide greater evidence that the groupings are stable.
 d2 <- get_dist(test,
                method = "euclidean")
 ```
 
+## 3. Ward's Method on Test Datset
+```{r, echo=FALSE}
+# Implemented the Ward method on the smaller dataset using the calculated distance.
+hc_test <- hclust(d2, 
+                  method = "ward.D2")
 
-## Ward's Method on Test Datset
+dend_test <- as.dendrogram(hc_test)
+
+par(mar=c(10,1,1,1))
+
+dend_test %>%
+  set("labels_col", value = c("skyblue","firebrick", "orange", "grey", "blue", "green"), k = 6) %>%
+  set("branches_k_color", 
+      value = c("skyblue",
+                "firebrick", 
+                 "orange", 
+                 "grey", 
+                 "blue", 
+                 "green"), 
+      k = 6
+      ) %>%
+  set("nodes_cex", 0.7) %>% 
+  set("labels_cex", .6) %>% 
+  plot(axes=FALSE)
+
+# Creating a visual representation of the cluster formation. 
+sub_group <-  cutree(hc_test, k = 6)
+
+fviz_cluster(list(data = test[,3:17], cluster = sub_group))
+```
+
+## 4. Cluster Stability Comparison
+```{r}
+# Looking at the formation of the clusters of the test partition with the original dataset. 
+# Found the intersection of the orginal dataset with the test partition.
+intersect_dend <- intersect_trees(dend1 = dend_test, dend2 = dend)
+
+# Using the dendbackback function in the "dendextend" package to map the two dendrograms back to back.
+dendbackback(
+  intersect_dend[[1]], 
+  intersect_dend[[2]],
+  sort = TRUE,
+  highlight_distinct_edges = FALSE, 
+  common_subtrees_color_lines = TRUE, 
+  common_subtrees_color_branches = TRUE)
+
+intersect_dend_orig <- intersect_dend[[2]]
+
+# attaching the cluster number of the DIANA results to the normalized dataset.
+test$cluster2 <- as.factor(cutree(dend_test, k = 6))
+
+# attaching the cluster number of each cereal to the normalized dataset.
+cereal_norm$cluster <- as.factor(cutree(dend, k = 6))
+
+test %>% 
+  filter(cluster == cluster2) %>% 
+  select(name, cluster, cluster2) 
+```
+
+### Very Good Cluster Stability
+20 of the 37 or 49% of the cereals were classified to the **same cluster number** as the original dataset. However this is misleading, the dendrogram visualization above shows that only 4 cereals were not grouped in the same cluster with the same cereals. This means that actually, 32 out of the 36 cereals were clustered the same as the original dataset. I would say that is pretty good! 
+
+## Test Partitioning Trial #2
+I am repeating the same process as above so I choose not to show the output since it is simply repeated.
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+set.seed(20)
+test_split <- createDataPartition(cereal_norm$sugars, p = .5, list = FALSE)
+
+test <- cereal_norm[test_split, ]
+
+row.names(test) <- test$name
+```
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+d2 <- get_dist(test,
+               method = "euclidean")
+```
+
 ```{r, echo=FALSE}
 hc_test <- hclust(d2, 
                   method = "ward.D2")
@@ -407,8 +497,8 @@ sub_group <-  cutree(hc_test, k = 6)
 fviz_cluster(list(data = test[,3 :17], cluster = sub_group))
 ```
 
-## Clustering Stability is Pretty Good.
-```{r}
+
+```{r, echo=FALSE}
 # Looking at the formation of the clusters of the test partition with the original dataset. 
 # Found the intersection of the orginal dataset with the test partition.
 intersect_dend <- intersect_trees(dend1 = dend_test, dend2 = dend)
@@ -423,11 +513,25 @@ dendbackback(
   common_subtrees_color_branches = TRUE)
 
 intersect_dend_orig <- intersect_dend[[2]]
+
+# attaching the cluster number of the results to the normalized dataset.
+test$cluster2 <- as.factor(cutree(dend_test, k = 6))
+
+# attaching the cluster number of each cereal to the normalized dataset.
+cereal_norm$cluster <- as.factor(cutree(dend, k = 6))
+
+test %>% 
+  filter(cluster == cluster2) %>% 
+  select(name, cluster, cluster2) 
 ```
 
-Looking at the above visualization starting at the leaves (on both sides), you can see it pairs the cereals together the same except for a few. It continues to maintain the groupings until the third iteration but by that time the groups at k = 6 are fairly the same. I believe this shows that the clusters are stable. The algorithm will do what I need it to do which is separate unhealthy cereals from healthy cereals.  
+18 of the 37 or 49% of the cereals were classified to the **same cluster number** as the original dataset. However this is misleading, the dendrogram visualization above shows that only 3 cereals were not grouped in the same cluster with the same cereals. This means that actually, 33 out of the 36 cereals were clustered the same as the original dataset. Again that is really good!
 
-```{r}
+## AGNES meets DIANA
+One last test of cluster stability is using Diversive Hierarchical Clustering and see how it compares to Agglomerative Hierarchical Clustering. Again, I am repeating the same process as above so I will only show the output.
+
+## DIANA Comparison
+```{r, echo=FALSE}
 diana <- diana(d)
 
 dend_diana <- as.dendrogram(diana)
@@ -449,7 +553,6 @@ dend_diana %>%
   set("labels_cex", .6) %>% 
   plot(axes=FALSE)
 
-# Using the dendbackback function in the "dendextend" package to map the two dendrograms back to back.
 dendbackback(
   dend_diana, 
   dend,
@@ -457,27 +560,27 @@ dendbackback(
   highlight_distinct_edges = FALSE, 
   common_subtrees_color_lines = TRUE, 
   common_subtrees_color_branches = TRUE)
+
+
+cereal_norm$diana <- as.factor(cutree(dend_diana, k = 6))
+
+cereal_norm %>% 
+  filter(diana == cluster) %>% 
+  select(name, cluster, diana) 
+# 45 of the 73 cereals were classified to the same cluster or 62% of the cereals were classified to the same cluster. 
 ```
 
-Performed the agnes hierarchical clustering and compared it with the diana hierarchical clustering to see if the clusters are similar for both methods which also gives evidence that the clusters are stable. Looking above you can see 52 of the 73 or about 70% cereals were grouped the same as agnes. I believe this gives further evidence of clustering stability as two different clustering algorithms formed mostly the same cluster groupings.  
+### Very Good Cluster Stability, Again!
+Performed the diana hierarchical clustering and compared it with the agnes hierarchical clustering to see if the clusters are similar for both methods which also gives evidence that the clusters are stable. Looking above you can see 45 of the 73 or about 62% cereals were grouped the same as agnes. I believe this gives further evidence of a decent clustering stability as two different clustering algorithms formed mostly the same cluster groupings. 
+
+## Clustering Stability Conclusion
+I believe that I can high confidence that the clusters are stable based on the two trial partition results being very high. Also, DIANA having 62% cluster similarity, I believe gives even greater confidence due to it being a different method for hierarchical clustering but still having the majority of clusters groups the same as our original clustering from the Ward's Method using Agnes. 
 
 # Healthy Cereal Recommendations
 
-## Cluster Numbers
-```{r}
-# attaching the cluster number of each cereal to the normalized dataset.
-cereal_norm$cluster <- as.factor(cutree(dend, k =6))
-
-# doing the same for the original dataset while also removing the incomplete cereals and "type" column to match the normalized cereal dataset.
-cereal <- cereal[complete.cases(cereal), ]
-cereal <- cereal[-42, -3]
-
-cereal$cluster <- as.factor(cutree(dend, k =6))
-```
-
 ## Average Clusters for Comparison
 ```{r, warning=FALSE, message=FALSE}
-# Putting cereals into their clusters and then finding the average of each cluster so I can better compare the clusters to one another and determine what kind of cereals are in each cluster.
+# Putting cereals into their clusters and then finding the average of each cluster so I can better compare the clusters to one another and determine what kind of cereals are in each cluster using the normalized dataset so that all the variables are within the same range.
 cereal_norm %>% 
   filter(cluster == 1) %>% 
   summarise_all(mean) -> cl1_ave

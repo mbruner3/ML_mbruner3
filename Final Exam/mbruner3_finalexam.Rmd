@@ -1,0 +1,167 @@
+---
+title: "Final Exam"
+output: html_document
+---
+
+```{r}
+rm(list=ls())
+```
+
+```{r, echo=FALSE}
+library(caret)
+library(tidyverse)
+library(ISLR)
+library(factoextra)
+```
+
+```{r}
+# loaded dataset and made the column types appropriate for the data in each column. However, columns 20 to 46 have the "%" symbol and I will remove that symbol and convert them to decimals later.
+soap <- read_csv("BathSoap.csv", col_types = c("ffffffffffdiidid??d???????????????????????????"))
+head(soap)
+```
+
+```{r}
+# Renaming columns so they are easier to work with.
+soap %>% 
+  rename(id = "Member id", 
+         sec = SEC,
+         feh = FEH,
+         mt = MT,
+         sex = SEX,
+         age = AGE,
+         edu = EDU,
+         hs = HS,
+         child = CHILD,
+         cs = CS,
+         affluence = "Affluence Index",
+         num_brand = "No. of Brands",
+         brand_runs = "Brand Runs",
+         tot_vol = "Total Volume",
+         num_trans = `No. of  Trans`,
+         value = Value,
+         trans_ovr_br = "Trans / Brand Runs",
+         vol_tran = "Vol/Tran",
+         ave_price = "Avg. Price",
+         pur_vol_no_promo = "Pur Vol No Promo - %",
+         pur_vol_promo = `Pur Vol Promo 6 %`,
+         pur_vol_diff_promo = "Pur Vol Other Promo %",
+         others_999 = "Others 999",
+         br_57_144 = "Br. Cd. 57, 144") %>% 
+  rename_at(vars(starts_with("Br. Cd. ")), 
+            funs(str_replace(., "Br. Cd. ", "br_"))) %>% 
+  rename_at(vars(starts_with("Pr Cat ")), funs(str_replace(., "Pr Cat ", "pr_cat_"))) %>% 
+  rename_at(vars(starts_with("PropCat")), funs(str_replace(., "PropCat ", "prop_cat_"))) -> soap
+```
+
+```{r}
+# Removing all the "%" symbols from columns 18 to 44 and converting them to decimals to represent "percent".
+soap[, 20:46] %>% 
+  mutate_all(funs(gsub("[[:punct:]]", "", .))) -> soap[, 20:46]
+
+soap[,20:46] <- lapply(soap[,20:46], function(x) as.numeric(x)/100)
+soap
+```
+
+```{r}
+# Checking to see if there are any missing data in our df. 
+colMeans(is.na(soap))
+```
+
+```{r}
+summary(soap)
+```
+
+
+## Part 1: Purchasing Behavior
+This segmentation is based upon the volume of purchase, the frequency of purchases, the susceptibility to discounts, and the brand loyalty of a household. 
+```{r}
+  if_else(condition = soap$br_57_144>= .9 | 
+            soap$br_55 >=.9 |
+            soap$br_272 >= .9 | 
+            soap$br_286 >= .9 | 
+            soap$br_24 >= .9 | 
+            soap$br_481 >= .9 | 
+            soap$br_352 >= .9 | 
+            soap$br_5 >= .9,
+          1, 
+          0) -> soap$br_loy_m1
+
+if_else(condition = soap$brand_runs >= 3,
+          1, 
+          0) -> soap$br_loy_m2
+
+if_else(condition = soap$brand_runs >= 3,
+          1, 
+          0) -> soap$br_loy_m2
+soap
+```
+
+
+
+```{r}
+cont <- soap[, 11:46]
+
+norm <- preProcess(cont, method = "scale", "center")
+
+norm <- predict(norm, cont)
+```
+
+
+```{r}
+boxplot(norm)
+```
+
+```{r}
+
+cont[1:10] %>% 
+  gather(key = Variable, value = Value) %>% 
+  ggplot() +
+    geom_histogram(aes(x = Value), fill = "steelblue") +
+    facet_wrap(~Variable, scales='free') +
+    theme_classic() +
+    theme(aspect.ratio = 0.5, axis.title = element_blank(), panel.grid = element_blank())
+
+cont[11:19] %>% 
+  gather(key = Variable, value = Value) %>% 
+  ggplot() +
+    geom_histogram(aes(x = Value), fill = "steelblue") +
+    facet_wrap(~Variable, scales='free') +
+    theme_classic() +
+    theme(aspect.ratio = 0.5, axis.title = element_blank(), panel.grid = element_blank())
+
+cont[20:36] %>% 
+  gather(key = Variable, value = Value) %>% 
+  ggplot() +
+    geom_histogram(aes(x = Value), fill = "steelblue") +
+    facet_wrap(~Variable, scales='free') +
+    theme_classic() +
+    theme(aspect.ratio = 0.5, axis.title = element_blank(), panel.grid = element_blank())
+```
+
+
+```{r}
+fviz_nbclust(cont, kmeans, method = "wss")
+fviz_nbclust(soap_nm, kmeans, method = "wss")
+```
+
+```{r}
+fviz_nbclust(soap_nm_rm, kmeans, method = "silhouette")
+fviz_nbclust(soap_nm, kmeans, method = "silhouette")
+```
+
+**3 clusters would seem to me to be reasonable since, from my 15 years of working in a higher ed setting, you basically have 3 types of universities: 1) smaller private and state schools, 2) larger state schools, and 3) ivy league schools. Also, optimal k would be 3 due to the "elbow" of the curve being at that point and using the information from the silhouettte method.**
+
+### K-means for k = 3 Analysis
+
+```{r}
+soap_rm_kmeans <- kmeans(soap_nm_rm, centers = 2, nstart = 25)
+soap_kmeans <- kmeans(soap_nm, centers = 2, nstart = 25)
+```
+
+```{r}
+fviz_cluster(soap_rm_kmeans, data = soap_nm_rm[, 11:44]) -> cluster1
+cluster1
+
+fviz_cluster(soap_kmeans, data = soap_nm[, 11:44]) -> cluster2
+cluster2
+```

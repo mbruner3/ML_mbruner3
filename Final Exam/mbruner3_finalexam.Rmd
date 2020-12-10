@@ -74,94 +74,131 @@ summary(soap)
 
 ## Part 1: Purchasing Behavior
 This segmentation is based upon the volume of purchase, the frequency of purchases, the susceptibility to discounts, and the brand loyalty of a household. 
+
+### Defining Brand Loyalty
 ```{r}
-  if_else(condition = soap$br_57_144>= .9 | 
+
+if_else(condition = 
+            soap$br_57_144 >= .9 | 
             soap$br_55 >=.9 |
             soap$br_272 >= .9 | 
             soap$br_286 >= .9 | 
             soap$br_24 >= .9 | 
             soap$br_481 >= .9 | 
             soap$br_352 >= .9 | 
-            soap$br_5 >= .9,
+            soap$br_5 >= .9, 
           1, 
-          0) -> soap$br_loy_m1
+          0) -> soap$br_loy_m1 # Represents all customers who purchased 90% or above volume of a specific brand. However, this measure is misleading as if a person only purchased 1 product of a specific brand, they would show as have 100% volume of that brand and would be included in this measure.
 
-if_else(condition = soap$brand_runs >= 3,
+if_else(condition = soap$brand_runs >= 3, # customers who had a brand run of 3 or more.
           1, 
-          0) -> soap$br_loy_m2
+          0) -> soap$br_loy_m2 
 
-if_else(condition = soap$brand_runs >= 3,
+if_else(condition = soap$num_brand == 1 & soap$num_trans >= 3, 
           1, 
-          0) -> soap$br_loy_m2
-soap
+          0) -> soap$br_loy_m3 # customers who only purchase one brand and have more than 3 transactions.
+
+if_else(soap$br_loy_m1 == 1 & soap$br_loy_m2 == 1, 1, 0) -> soap$br_loy_m1_m2 # Paired br_loy_m1 with br_loy_m2 to filter out any customers who had 1 transaction with 1 brand. This column then represents all customers who had a brand purchase volume of 90% and had brand runs greater or equal to 3.
+
+if_else(soap$br_loy_m1 ==1 & soap$br_loy_m3 == 1, 1, 0) -> soap$br_loy_m1_m3 # Paired br_loy_m1 with br_loy_m3 to represent all customers who had a brand purchase volume of 90% of 1 brand and had at least 3 or more transactions.
+
+soap %>%
+  mutate(brand_loyal = case_when(
+         br_loy_m1_m2 == 1 ~ "1",
+         br_loy_m1_m3 == 1 ~ "1",
+         TRUE ~ "0")
+  ) -> soap # creating a single column of brand loyalty combining the previous two measures. I will remove the other columns as they are no longer needed. 
+
+soap <- soap[, -47:-51] # removed unnecessary columns (see above comment for reason).
+soap$brand_loyal <- as.factor(soap$brand_loyal) # making brand_loyal a factor type.
+  
+soap %>% 
+  filter(brand_loyal == "1") %>% 
+  select(affluence, tot_vol, value, vol_tran, ave_price, pur_vol_no_promo, pur_vol_promo, pur_vol_diff_promo) %>% 
+  gather(key = Variable, value = Value) %>% 
+  ggplot() +
+    geom_histogram(aes(x = Value), fill = "steelblue") +
+    facet_wrap(~Variable, scales='free') +
+    theme_classic() +
+    theme(aspect.ratio = 0.5, axis.title = element_blank(), panel.grid = element_blank()) 
+
+soap %>% 
+  filter(br_57_144 >= .75 &
+           br_57_144 < .9 |
+            br_55 >=.75 &
+           br_55 < .9 | 
+           br_272 >= .75 & 
+            br_272 < .9 | 
+            br_286 >= .75 &
+           br_286 < .9 |
+            br_24 >= .75 &
+           br_24 < .9 |
+            br_481 >= .75 &
+           br_481 < .9 |
+            br_352 >= .75 & 
+           br_352 < .9 | 
+            br_5 >= .75 &
+            br_5 < .9)
+
+soap %>% 
+  filter(num_trans != 1) -> soap
 ```
 
+The group of brand loyal customers above have an affluence between 4 to 15, tend to have an average price less than $7, tend to purchase without any promotion, high volumes, and have a high value.
 
-
+##
 ```{r}
 cont <- soap[, 11:46]
-
-norm <- preProcess(cont, method = "scale", "center")
-
+norm <- preProcess(cont, method = c("scale", "center"))
 norm <- predict(norm, cont)
 ```
 
 
 ```{r}
 boxplot(norm)
+summary(norm)
 ```
 
 ```{r}
-
-cont[1:10] %>% 
-  gather(key = Variable, value = Value) %>% 
-  ggplot() +
-    geom_histogram(aes(x = Value), fill = "steelblue") +
-    facet_wrap(~Variable, scales='free') +
-    theme_classic() +
-    theme(aspect.ratio = 0.5, axis.title = element_blank(), panel.grid = element_blank())
-
-cont[11:19] %>% 
-  gather(key = Variable, value = Value) %>% 
-  ggplot() +
-    geom_histogram(aes(x = Value), fill = "steelblue") +
-    facet_wrap(~Variable, scales='free') +
-    theme_classic() +
-    theme(aspect.ratio = 0.5, axis.title = element_blank(), panel.grid = element_blank())
-
-cont[20:36] %>% 
-  gather(key = Variable, value = Value) %>% 
-  ggplot() +
-    geom_histogram(aes(x = Value), fill = "steelblue") +
-    facet_wrap(~Variable, scales='free') +
-    theme_classic() +
-    theme(aspect.ratio = 0.5, axis.title = element_blank(), panel.grid = element_blank())
+purchases <- norm[, 2:36]
 ```
 
 
 ```{r}
-fviz_nbclust(cont, kmeans, method = "wss")
-fviz_nbclust(soap_nm, kmeans, method = "wss")
+fviz_nbclust(purchases, kmeans, method = "wss")
 ```
 
 ```{r}
-fviz_nbclust(soap_nm_rm, kmeans, method = "silhouette")
-fviz_nbclust(soap_nm, kmeans, method = "silhouette")
+fviz_nbclust(purchases, kmeans, method = "silhouette")
 ```
 
 **3 clusters would seem to me to be reasonable since, from my 15 years of working in a higher ed setting, you basically have 3 types of universities: 1) smaller private and state schools, 2) larger state schools, and 3) ivy league schools. Also, optimal k would be 3 due to the "elbow" of the curve being at that point and using the information from the silhouettte method.**
 
-### K-means for k = 3 Analysis
+### K-means for k = 2 & 3 Analysis
 
 ```{r}
-soap_rm_kmeans <- kmeans(soap_nm_rm, centers = 2, nstart = 25)
-soap_kmeans <- kmeans(soap_nm, centers = 2, nstart = 25)
+purchases_kmeans <- kmeans(purchases, centers = 2, nstart = 25)
+purchases_kmeans3 <- kmeans(purchases, centers = 3, nstart = 25)
 ```
 
 ```{r}
-fviz_cluster(soap_rm_kmeans, data = soap_nm_rm[, 11:44]) -> cluster1
-cluster1
-
-fviz_cluster(soap_kmeans, data = soap_nm[, 11:44]) -> cluster2
-cluster2
+fviz_cluster(purchases_kmeans, data = purchases) -> purchase_behave
+purchase_behave
+fviz_cluster(purchases_kmeans3, data = purchases) -> purchase_behave
+purchase_behave
 ```
+
+```{r}
+soap$purch_cluster <-purchases_kmeans$cluster
+soap %>% 
+  filter(purch_cluster == 1)
+
+
+
+data.frame(purchases_kmeans$centers )-> centers2
+data.frame(purchases_kmeans3$centers )-> centers3
+centers2
+centers3
+```
+
+

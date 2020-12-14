@@ -650,6 +650,15 @@ ggplot(
                         text = element_text(size = 12)
     ) + 
   scale_color_manual(name = "Cluster", values = c("#FF0000", "#D3D3D3", "#D3D3D3"))
+
+soap[, c(2:10,14, 53)] %>% 
+  filter(purch_behavior_basis_cl == 1) %>% 
+  gather(key = Variable, value = Value) %>% 
+  ggplot() +
+    geom_histogram(aes(x = Value), fill = "steelblue", stat = "count") +
+    facet_wrap(~Variable, scales='free') +
+    theme_classic() +
+    theme(aspect.ratio = 0.5, axis.title = element_blank(), panel.grid = element_blank()) 
 ```
 
 ### Cluster 1
@@ -674,6 +683,15 @@ ggplot(
                         text = element_text(size = 12)
     ) + 
   scale_color_manual(name = "Cluster", values = c("#D3D3D3", "#FF0000", "#D3D3D3"))
+
+soap[, c(2:10,14, 53)] %>% 
+  filter(purch_behavior_basis_cl == 2) %>% 
+  gather(key = Variable, value = Value) %>% 
+  ggplot() +
+    geom_histogram(aes(x = Value), fill = "steelblue", stat = "count") +
+    facet_wrap(~Variable, scales='free') +
+    theme_classic() +
+    theme(aspect.ratio = 0.5, axis.title = element_blank(), panel.grid = element_blank()) 
 ```
 
 ### Cluster 2
@@ -700,10 +718,15 @@ ggplot(
     ) + 
   scale_color_manual(name = "Cluster", values = c("#D3D3D3", "#D3D3D3", "#FF0000"))
 
-soap %>% 
-  filter(purch_behavior_basis_cl == 1) %>% 
-  group_by(sec) %>% 
-  tally()
+soap[, c(2:10,14, 53)] %>% 
+  filter(purch_behavior_basis_cl == 3) %>% 
+  gather(key = Variable, value = Value) %>% 
+  ggplot() +
+    geom_histogram(aes(x = Value), fill = "steelblue", stat = "count") +
+    facet_wrap(~Variable, scales='free') +
+    theme_classic() +
+    theme(aspect.ratio = 0.5, axis.title = element_blank(), panel.grid = element_blank()) 
+
 ```
 
 ### Cluster 3

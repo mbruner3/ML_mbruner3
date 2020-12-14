@@ -622,7 +622,7 @@ cluster_mean$cluster <- c(1,2,3,4,5,6)
 
 
 ```{r}
-# Based on the differenct recommendations for healthy amounts of fiber, sodium, and sugar. I am adding those recommendations to the original cereal dataset so I can use them in my recommendations and for comparisons of clusters.
+# Based on the different recommendations for healthy amounts of fiber, sodium, and sugar. I am adding those recommendations to the original cereal dataset so I can use them in my recommendations and for comparisons of clusters.
 
 # Healthy sugar level variable.
 cereal %>% 

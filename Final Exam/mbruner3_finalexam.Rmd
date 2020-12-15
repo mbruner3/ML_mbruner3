@@ -17,16 +17,16 @@ library(corrplot)
 library(fpc)
 ```
 
-## Data Cleaning and Wrangling
+# Data Cleaning and Wrangling
 
-```{r, }
+```{r, echo=FALSE}
 # Columns 20 to 46 have the "%" symbol and I will remove that symbol and convert them to decimals later.
 soap <- read_csv("BathSoap.csv", col_types = c("ffffffffffdiidid??d???????????????????????????")) # set column types.
 head(soap)
 ```
 
 
-```{r, message=FALSE}
+```{r, message=FALSE, warning=FALSE}
 # Renaming columns so they are easier to work with.
 soap %>% 
   rename(id = "Member id", 
@@ -79,9 +79,9 @@ colMeans(is.na(soap))
 ```
 
 
-## Exploratory Data Analysis 
+# Exploratory Data Analysis 
 
-```{r}
+```{r, echo=FALSE}
 summary(soap)
 
 soap %>% 
@@ -127,7 +127,7 @@ soap[, 32:46] %>%
 
 
 **Histogram of Variables 2 to 10**
-Most of the customers were age level 3 and 4. The child varialbe has the highest count at level 4 and then level 2. The cs level highest was level 1 and the edu variable has levels 4 and 5 mostly. feh was level 1 and 3. hs was between 3 to 6 and mt was 10. sec was all even in the distribution of counts and sex was 2.
+Most of the customers were age level 3 and 4. The child variable has the highest count at level 4 and then level 2. The cs level highest was level 1 and the edu variable has levels 4 and 5 mostly. feh was level 1 and 3. hs was between 3 to 6 and mt was 10. sec was all even in the distribution of counts and sex was 2.
 
 **Histogram of Variables 11 to 22**
 Affluence, ave_price, num_trans all seem fairly normally distributed. Affluence has many 0's included that seem that they are missing values so if you impute those values then I suspect the graph will seem more normal. Many of the other variables are skew negative like pur_vol_promo. Purchase volume decreased with promotion but the purchase volume without a promotion increased in volume. 
@@ -172,6 +172,8 @@ soap %>%
 
 ## Variable Correlations and Relationship Exploration
 
+**Stronger Positive Correlations**
+
 ```{r, echo=FALSE}
 cont <- soap[, 11:46]
 cc <- cor(soap[, 11:46], method = "pearson")
@@ -179,23 +181,7 @@ corrplot(cc, method = "circle", type = "lower")
 
 soap %>% 
   ggplot(aes(color = affluence)) +
-    geom_point(aes(x = brand_runs, y=num_brand))
-
-soap %>% 
- ggplot(aes(color = affluence)) +
-    geom_point(aes(x = brand_runs, y=num_trans))
-
-soap %>% 
-  ggplot(aes(color = affluence)) +
-    geom_point(aes(x = brand_runs, y=num_brand))
-
-soap %>% 
-  ggplot(aes(color = affluence)) +
     geom_point(aes(x = tot_vol, y = value))
-
-soap %>% 
- ggplot(aes(color = affluence)) +
-    geom_point(aes(x = vol_tran, y = tot_vol))
 
 soap %>% 
 ggplot(aes(color = affluence)) +
@@ -204,7 +190,6 @@ ggplot(aes(color = affluence)) +
 soap %>% 
   ggplot(aes(color = affluence)) +
     geom_point(aes(x = pr_cat_3, y = br_55))
-
 
 soap %>% 
 ggplot(aes(color = affluence)) +
@@ -223,113 +208,113 @@ soap %>%
     geom_point(aes(x = prop_cat_14, y = pr_cat_3), color = "steelblue")
 ```
 
-**Possible Relationships:**
-
-1. **Stronger positive relationships:**
-  + Brand runs and number of brands (The higher the brand runs, the higher the number different brands purchased.)
-  + number of transactions and brand runs (the higher the brand runs the higher the number of transactions, which means the more transactions the higher the number of different brands, there is a positive correlation between those two as well.)
+**Visualization Summary**
   + value and total volume (the higher the value the higher the volume, typically the larger weight costs more so that makes sense. Since these are different soap products that would make sense.)
-  + Pr_cat_1 and ave_price (the higher the average price, the more of product category 1 is purchased.)
+  + Pr_cat_1 and ave_price (the higher the average price, the more of product category 1 is purchased. It is probably the price category for more premiumm products.)
+  + Pr_cat_3 and br_55 (Brand 55 is in price category 3.)
   + prop_cat_14 and br_55 (I am guessing this means that most likely br_55 is mostly in prop_cat_14, same conclusion for the next two brands below.)
   + prop_cat_11 and br_481
   + prop_cat_13 and br_24
   + prop_cat_3 and pr_cat_14 (proposition category 3 must sell mostly in the third price category.)
-  
-2. **Stronger negative relationships:**
+
+## Stronger Negative Correlations Visualizations
+```{r, echo=FALSE}
+soap %>% 
+  ggplot() +
+    geom_point(aes(x = pur_vol_no_promo, y = pur_vol_promo), color = "firebrick")
+
+soap %>% 
+  ggplot() +
+    geom_point(aes(x = pur_vol_diff_promo, y = pur_vol_promo), color = "firebrick")
+
+soap %>% 
+  ggplot() +
+    geom_point(aes(x = pr_cat_3, y = ave_price), color = "firebrick")
+
+soap %>% 
+  ggplot() +
+    geom_point(aes(x = prop_cat_14, y = ave_price), color = "firebrick")
+```
+
+**Visualization Summary**
   + no promotion and different promotions vs. promotion 6. This makes sense, those who purchase without promotion are making a purchase for a different reason than those who buy during a promotion or purchasing during a different promotion.
   + price category 3 and average price. The lower the average price the more of price cat 3 products. This means that this category has lower priced products.
   + proposition category 14 and average price, this category has lower cost product. brand 55 must also be lower cost on average.
 
 ### Exploring Brand Loyalty
-```{r}
-library(matrixStats)
 
+```{r, results=FALSE}
+library(matrixStats)
+# After thinking about how to best represent the brand columns in a way that k-Means will be able to use in the clustering algorithm without the noise of the 0's and very small decimals. I decided to use the max value in each row for the percentage spent. I choose this because it will be a continuous value and also kept the information for measuring brand loyalty: proportion of money spent on a specific brand.  
 brand <- as.matrix(soap[23:31])
 soap$br_max <- rowMaxs(brand) 
 
-as.factor(if_else(condition = 
-            soap$br_57_144 >= .9 | 
-            soap$br_55 >=.9 |
-            soap$br_272 >= .9 | 
-            soap$br_286 >= .9 | 
-            soap$br_24 >= .9 | 
-            soap$br_481 >= .9 | 
-            soap$br_352 >= .9 | 
-            soap$br_5 >= .9 |
-            soap$others_999 >= .9, 
-          1, 
-          0)) -> soap$br_loy_m1 # Represents all customers who purchased 90% or above volume of a specific brand. However, this measure is misleading as if a person only purchased 1 product of a specific brand, they would show as have 100% volume of that brand and would be included in this measure.
-
-as.factor(if_else(condition = soap$brand_runs >= 3, # customers who had a brand run of 3 or more.
-          1, 
-          0)) -> soap$br_loy_m2 
-
-as.factor(if_else(condition = soap$num_brand == 1 & soap$num_trans >= 3, 
-          1, 
-          0)) -> soap$br_loy_m3 # customers who only purchase one brand and have more than 3 transactions.
-
 soap %>% 
-  relocate(id, sec, feh, mt, sex, age, edu, hs, child, cs, br_loy_m1, br_loy_m2, br_loy_m3, affluence, num_brand, brand_runs, num_trans, tot_vol, value, trans_ovr_br, vol_tran, ave_price, pur_vol_no_promo, pur_vol_promo, pur_vol_diff_promo, br_max) -> soap
+  relocate(id, sec, feh, mt, sex, age, edu, hs, child, cs, affluence, num_brand, brand_runs, num_trans, tot_vol, value, trans_ovr_br, vol_tran, ave_price, pur_vol_no_promo, pur_vol_promo, pur_vol_diff_promo, br_max) -> soap
 soap
 ```
 
 ### Normalization
 ```{r}
 set.seed(15)
-norm <- preProcess(soap[14:50], method = c("scale", "center"))
-norm <- predict(norm, soap[14:50])
+norm <- preProcess(soap[12:47], method = c("scale", "center"))
+norm <- predict(norm, soap[12:47])
 ```
 
 # Part 1: Purchasing Behavior
 This segmentation is based upon the volume of purchase, the frequency of purchases, average price, the susceptibility to discounts, and the brand loyalty of a household. 
 
-```{r}
-purchase_behavior <- norm[, c(2:13)] # created a df based on purchase behavior variables.
+```{r, echo=FALSE}
+purchase_behavior <- norm[, c(1:12)] # created a df based on purchase behavior variables.
 ```
 
 ## k Optimization
-```{r}
+```{r, echo=FALSE}
 fviz_nbclust(purchase_behavior, kmeans, method = "wss")
 ```
 
-```{r}
+```{r, echo=FALSE}
 fviz_nbclust(purchase_behavior, kmeans, method = "silhouette")
 ```
 
-**4 to 5 clusters would seem to me to be reasonable since they would want 2 to 5 promotional approaches. Also, optimal k would be around 4 due to the "elbow" of the curve being at that point and using the information from the silhouettte method it would be at 5, however, 4 isn't much lower.**
+**4 to 5 clusters would seem to me to be reasonable. Optimal k would be around 4 or 5 due to the "elbow" of the curve being at that point and using the information from the silhouettte method it would be at 5, however, 4 isn't much lower.**
 
 ### K-means for k = 4 & 5 Analysis
 
-```{r}
+```{r, echo=FALSE}
 purchases_kmeans4 <- kmeans(purchase_behavior, centers = 4, nstart = 25)
 purchases_kmeans5 <- kmeans(purchase_behavior, centers = 5, nstart = 25)
 ```
 
-```{r}
+```{r, echo=FALSE}
 fviz_cluster(purchases_kmeans4, data = purchase_behavior) -> purchase_behave
 purchase_behave
 fviz_cluster(purchases_kmeans5, data = purchase_behavior) -> purchase_behave
 purchase_behave
 ```
 
-```{r}
+```{r, echo=FALSE}
 library(cluster)
 sil <- silhouette(purchases_kmeans4$cluster, dist(purchase_behavior))
 fviz_silhouette(sil)
 
 sil <- silhouette(purchases_kmeans5$cluster, dist(purchase_behavior))
 fviz_silhouette(sil)
+
+plot(purchases_kmeans4$centers)
+plot(purchases_kmeans5$centers)
 ```
 
-After looking at both k = 4 and k =5, 5 clusters seems to be better as the clusters center distances seem more widely spread out and not as close together. Also, it seems to me that the k=5 had less negative values which means they probably put more points into the right clusters. 
+### **k Selection**
+After looking at both k = 4 and k =5, 5 clusters seems to be better as the clusters center distances seem more widely spread out and evenly. Also, they don't seems as close together. It seems to me that the k=5 had less negative values which means they probably put more points into the right clusters. 
 
 ## Cluster Analysis
-```{r}
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 soap$purch_behavior_cl <- purchases_kmeans5$cluster
 
 norm_soap_centers <- as.data.frame(cbind(c(1, 2, 3, 4, 5), purchases_kmeans5$centers))
 
-soap[, c(15:26,51)]%>%
+soap[, c(15:26,48)]%>%
   group_by(purch_behavior_cl) %>% 
   summarise_all(mean) -> soap_centers
 
@@ -359,12 +344,12 @@ ggplot(
 ```
 
 ### Cluster 1
-The customers in this cluster are likely to be the **big spenders**: 
+* The customers in this cluster are likely to be the **big spenders**: 
   + high total volume of transactions 
   + high total value of transactions
  
 ### Cluster 2
-The customers in this cluster are **value seekers**: 
+* The customers in this cluster are **value seekers**: 
   + won't make purchases without a promotion
   + will purchased items that have higher average prices
   
@@ -388,7 +373,7 @@ ggplot(
 ```
 
 ### Cluster 3
-The customers in this cluster are **brand loyal**: 
+* The customers in this cluster are **brand loyal**: 
   + most brand loyal as they purchase lowest number of brands
   + spend their money on the brands they are loyal to
   + have a higher number of transactions per brand run
@@ -396,7 +381,7 @@ The customers in this cluster are **brand loyal**:
   + do not need promotions to buy their brands
 
 ### Cluster 4
-The customers in this cluster are **occasional purchasers**: 
+* The customers in this cluster are **occasional purchasers**: 
   + lowest number of transactions
   + lowest volume
   + lowest total value
@@ -420,8 +405,8 @@ ggplot(
 ```
 
 ### Cluster 5
-The customers in this cluster are **not brand loyal**: 
-  + Highest number of brand runs
+* The customers in this cluster are **not brand loyal**: 
+  + Highest number of brands and brand runs
   + highest number of transactions
   + lower transactions per brand
   + lowest percentage spent on a specific brand
@@ -430,7 +415,7 @@ The customers in this cluster are **not brand loyal**:
   
   
 ## Summary
-What are the variables that best identify the clusters? Looking at the graphs of each cluster, they all seem important to distinguishing each cluster. I didn't see a variable that all the clusters were close to 0 or the normalized means were all within 1 SD from the center 0. 
+What are the variables that best identify the clusters? Looking at the graphs of each cluster, they all seem important to distinguishing each cluster.
   
   
   
@@ -439,56 +424,62 @@ What are the variables that best identify the clusters? Looking at the graphs of
   
   
   
-  
-  
-# Part 2: Why Customers Buy
-This segmentation is based average price and the selling propositions. 
+ 
+# Part 2: Why Do Customers Buy? The Factors
+This segmentation is based average price, price categories, and the selling propositions. 
 
 ```{r}
-purchase_reason <- norm[, c(9,23:37)] # created a df based on purchase behavior variables.
+purchase_reason <- norm[, c(8, 22:36)] # created a df based on purchase behavior variables.
 ```
 
 ## k Optimization
-```{r}
+```{r, echo=FALSE}
 fviz_nbclust(purchase_reason, kmeans, method = "wss")
 ```
 
-```{r}
+```{r, echo=FALSE}
 fviz_nbclust(purchase_reason, kmeans, method = "silhouette")
 ```
 
-**4 to 5 clusters would seem to me to be reasonable since they would want 2 to 5 promotional approaches. Also, optimal k would be around 4 due to the "elbow" of the curve being at that point and using the information from the silhouettte method it would be at 5, however, 4 isn't much lower.**
+### **k Selection**
+3 or 4 clusters would seem to me to be reasonable as the "elbow" of the curve could be interpreted as being at that point. However the silhouettte method is saying at 10 but that is too many clusters and not realistic for this problem. I will start with 3 and 4 and see the results before making a decision.
 
 ### K-means for k = 3 & 4 Analysis
 
-```{r}
+```{r,echo=FALSE}
 purchases_kmeans3 <- kmeans(purchase_reason, centers = 3, nstart = 25)
 purchases_kmeans4 <- kmeans(purchase_reason, centers = 4, nstart = 25)
 ```
 
-```{r}
+```{r, echo=FALSE}
 fviz_cluster(purchases_kmeans4, data = purchase_reason) -> purchase_basis
 purchase_basis
 fviz_cluster(purchases_kmeans3, data = purchase_reason) -> purchase_basis
 purchase_basis
 ```
 
-```{r}
+```{r, echo=FALSE}
 sil <- silhouette(purchases_kmeans4$cluster, dist(purchase_reason))
 fviz_silhouette(sil)
 
 sil <- silhouette(purchases_kmeans3$cluster, dist(purchase_reason))
 fviz_silhouette(sil)
+
+plot(purchases_kmeans4$centers)
+plot(purchases_kmeans3$centers)
 ```
-After looking at both k = 3 and k =4, 3 clusters seems to be better as the clusters are less overlapped, clusters are more compact, and centers are spread futher apart. 
+
+### **k Selection**
+After looking at both k = 3 and k =4, 3 clusters seems to be better as the clusters are less overlapped, clusters are more compact, and centers are spread further apart. 
 
 ## Cluster Analysis
-```{r}
+
+```{r, echo=FALSE, warning=FALSE}
 soap$purch_reason_cl <- purchases_kmeans3$cluster
 
-norm_soap_centers <- as.data.frame(cbind(c(1, 2, 3, 4, 5), purchases_kmeans3$centers))
+norm_soap_centers <- as.data.frame(cbind(c(1, 2, 3), purchases_kmeans3$centers))
 
-soap[, c(9,23:37,52)]%>%
+soap[, c(8,22:36,49)]%>%
   group_by(purch_reason_cl) %>% 
   summarise_all(mean) -> soap_centers_2
 
@@ -517,7 +508,7 @@ ggplot(
 ```
 
 ### Cluster 1
-The customers in this cluster are likely to make purchases if: 
+* The customers in this cluster are likely to make purchases if: 
   + the product's price is in category 2 and 4
   + the product is more in proposition category 5 or but also 11
   + Less likely to purchase a product in price categories 1 and 3 or in proposition category 12 to 14
@@ -542,7 +533,7 @@ ggplot(
 ```
 
 ### Cluster 2
-The customers in this cluster are likely to make purchases if: 
+* The customers in this cluster are likely to make purchases if: 
   + the average price is higher
   + the product's price is in category 1 (highly motivated to purchase in that category)
   + makes purchases in most of the proposition cateogries
@@ -568,16 +559,16 @@ ggplot(
 ```
 
 ### Cluster 3
-The customers in this cluster are likely to make purchases if: 
+* The customers in this cluster are likely to make purchases if: 
   + the average price very low
   + the product's price is in category 2 and 4
   + Motivated to purchase in prop_cat_5
 
 ## Summary
-What are the variables that identify the clusters:
+* What are the variables that identify the clusters:
   + Average Price
   + All Price Categories
-  + All proposition categories except maybe numbers 9, 11, and 15 as most of the values for each cluster is close to 0, the center.
+  + All proposition categories except maybe numbers 9, 11, and 15 as most of the values for each cluster is closer to 0, the center. I am interpreting those as not distinguishable factors between clusters.
 
 
 
@@ -590,15 +581,15 @@ What are the variables that identify the clusters:
 How can we use the above knowledge to create clusters that combine what we have learned so far? I am going to take the variables from both parts where at least one cluster's mean was at least 1 SD from the center, 0. The variables I will be using are all of the variables for part 1 and all the variables from part 2. I will see if removing prop_cat_9, 11, and 15 has any impact on the clusters by keeping them in and then removing them to see if there is any impact on the clusters.
 
 ```{r}
-purch_behavior_basis <- norm[, c(2:13, 23:30,32,34:36)] # created a df based on purchase behavior variables.
+purch_behavior_basis <- norm[, c(1:12, 22:29,31,33:35)] # created a df based on purchase behavior and basis variables.
 ```
 
 ## k Optimization
-```{r}
+```{r, echo=FALSE}
 fviz_nbclust(purch_behavior_basis, kmeans, method = "wss")
 ```
 
-```{r}
+```{r, echo=FALSE}
 fviz_nbclust(purch_behavior_basis, kmeans, method = "silhouette")
 ```
 
@@ -606,19 +597,19 @@ fviz_nbclust(purch_behavior_basis, kmeans, method = "silhouette")
 
 ### K-means for k = 3 & 4 Analysis
 
-```{r}
+```{r, echo=FALSE}
 purchases_kmeans3 <- kmeans(purch_behavior_basis, centers = 3, nstart = 25)
 purchases_kmeans4 <- kmeans(purch_behavior_basis, centers = 4, nstart = 25)
 ```
 
-```{r}
+```{r, echo=FALSE}
 fviz_cluster(purchases_kmeans4, data = purch_behavior_basis) -> purchase_behave
 purchase_behave
 fviz_cluster(purchases_kmeans3, data = purch_behavior_basis) -> purchase_behave
 purchase_behave
 ```
 
-```{r}
+```{r, echo=FALSE}
 library(cluster)
 sil <- silhouette(purchases_kmeans3$cluster, dist(purch_behavior_basis))
 fviz_silhouette(sil)
@@ -627,15 +618,16 @@ sil <- silhouette(purchases_kmeans4$cluster, dist(purch_behavior_basis))
 fviz_silhouette(sil)
 ```
 
+## **k Selection**
 After looking at both k = 3 and k =4, 3 clusters seems to be better as the clusters are more defined and there is less overlap. Also from our previous sections, three clusters would be more useful for classifying the types of customers in each.
 
 ## Cluster Analysis
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 soap$purch_behavior_basis_cl <- purchases_kmeans3$cluster
 
 norm_soap_centers <- as.data.frame(cbind(c(1, 2, 3), purchases_kmeans3$centers))
 
-soap[, c(15:26, 36:43, 45, 47:49, 53)]%>%
+soap[, c(12:23, 33:40, 42, 44:46, 50)]%>%
   group_by(purch_behavior_basis_cl) %>% 
   summarise_all(mean) -> soap_centers
 
@@ -662,7 +654,12 @@ ggplot(
     ) + 
   scale_color_manual(name = "Cluster", values = c("#FF0000", "#D3D3D3", "#D3D3D3"))
 
-soap[, c(2:10,14, 53)] %>% 
+soap %>% 
+  filter(purch_behavior_basis_cl == 1) %>%
+  ggplot() +
+    geom_histogram(aes(x = affluence), fill = "steelblue")
+
+soap[, c(2:10, 50)] %>% 
   filter(purch_behavior_basis_cl == 1) %>% 
   gather(key = Variable, value = Value) %>% 
   ggplot() +
@@ -672,10 +669,21 @@ soap[, c(2:10,14, 53)] %>%
     theme(aspect.ratio = 0.5, axis.title = element_blank(), panel.grid = element_blank()) 
 ```
 
-### Cluster 1
-The customers in this cluster are likely to be the **brand loyal** customers who: 
+### **Cluster 1: Purchase Behavior and Basis**
+* The customers in this cluster are likely to be the **brand loyal** customers who: 
   + purchase items of a lower price
   + respond to products in the third price category and proposition category 14
+  
+### **Cluster 1 Demographics** 
+* The customers in this cluster are:
+  + lower affluence
+  + Women of ages category 2 to 4
+  + non-vegetarian
+  + Have child categories 2, 4, and 5
+  + mostly have native language of 10
+  + have 4 and 5 members in the household
+  + come from socioeconomic lower status of 4
+  + mostly, lower amounts of education 
   
  
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -695,7 +703,12 @@ ggplot(
     ) + 
   scale_color_manual(name = "Cluster", values = c("#D3D3D3", "#FF0000", "#D3D3D3"))
 
-soap[, c(2:10,14, 53)] %>% 
+soap %>%
+  filter(purch_behavior_basis_cl == 2) %>%
+  ggplot() +
+    geom_histogram(aes(x = affluence), fill = "steelblue")
+
+soap[, c(2:10, 50)] %>% 
   filter(purch_behavior_basis_cl == 2) %>% 
   gather(key = Variable, value = Value) %>% 
   ggplot() +
@@ -705,11 +718,22 @@ soap[, c(2:10,14, 53)] %>%
     theme(aspect.ratio = 0.5, axis.title = element_blank(), panel.grid = element_blank()) 
 ```
 
-### Cluster 2
-The customers in this cluster move around brands and: 
+### **Cluster 2: Purchase Behavior and Basis**
+* The customers in this cluster move around brands and: 
   + base their purchases on the price of the product
   + they are not motivated by the promotions
   + their purchases are mostly in price categories 2 and 4 and prop category 5
+  
+### **Demographics** 
+* The customers in this cluster are:
+  + mostly lower to higher middle affluence
+  + Women of ages category 3 to 4
+  + Have child categories 2 and 4
+  + education of 4 to 5
+  + non-vegetarian
+  + mostly have native language of 4 and 10
+  + have 3 to 6 members in the household
+  + come from socioeconomic lower status of 3 and 4
 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -729,7 +753,12 @@ ggplot(
     ) + 
   scale_color_manual(name = "Cluster", values = c("#D3D3D3", "#D3D3D3", "#FF0000"))
 
-soap[, c(2:10,14, 53)] %>% 
+soap %>%
+  filter(purch_behavior_basis_cl == 3) %>%
+  ggplot() +
+    geom_histogram(aes(x = affluence), fill = "steelblue")
+
+soap[, c(2:10, 50)] %>% 
   filter(purch_behavior_basis_cl == 3) %>% 
   gather(key = Variable, value = Value) %>% 
   ggplot() +
@@ -740,74 +769,63 @@ soap[, c(2:10,14, 53)] %>%
 
 ```
 
-### Cluster 3
-The customers in this cluster are **premium customers**: 
+### **Cluster 3: Purchase Behavior and Basis**
+* The customers in this cluster are **premium customers**: 
   + they purchase products that have a high average price
   + they could be more brand loyal
   + they love a good promotion
   + they love the products in price category 1 and any proposition category that is 6 to 13
   
+### **Demographics** 
+* The customers in this cluster are:
+  + higher affluence
+  + Women of ages category 3 to 4
+  + vegetarian and non-vegetarian
+  + Have child category of 4
+  + mostly have native language of 4 and 10
+  + have 4 and 5 members in the household
+  + come from socioeconomic lower status of 3 and 4 
+  + higher education levels
   
-  
+
+
 
 
 
 
 
 ## Part 4: Predictive Model
-We need to create a model that will predict if a customer one of the three clusters.
+We need to create a model that will predict if a customer will be in cluster 1.
 
 
-```{r}
+```{r, warning=FALSE}
 library(fastDummies)
-soap[, 54:57] <- dummy_cols(soap$purch_behavior_basis_cl)
-soap2 <- soap[, c(-1,-11:-13, -27:-35, -44, -46, -50:-54)]
+soap[, 51:54] <- dummy_cols(soap$purch_behavior_basis_cl)
+
+# Removing unnecessary variables to make coding easier in this section
+soap2 <- soap[, c(-1, -24:-32, -41, -43, -47:-51)] 
 
 soap2$.data_1 <- as.factor(soap2$.data_1)
-soap2$.data_2 <- as.factor(soap2$.data_2)
-soap2$.data_3 <- as.factor(soap2$.data_3)
-p <- createDataPartition(soap2$.data_1,p=0.7,list=FALSE)
 
+
+# split into soap dataset into training and validation set to test the predictive power of the model.
+p <- createDataPartition(soap2$.data_1,p=0.7,list=FALSE)
 train <- as.data.frame(soap2[p,])
 valid <- as.data.frame(soap2[-p,])
 
-## Applying logistic regression model 
-model1 <- glm(formula = .data_1 ~ cs+edu+feh+hs+sex+brand_runs+trans_ovr_br++value+ave_price+pr_cat_2+pr_cat_3+prop_cat_5+prop_cat_14+br_max, family = binomial, 
+# Applying logistic regression model 
+model1 <- glm(formula = .data_1 ~ cs+edu+feh+hs+sex+brand_runs+trans_ovr_br+value+ave_price+pr_cat_2+pr_cat_3+prop_cat_5+prop_cat_14+br_max, family = binomial, 
     data = train[, -36:-37])
-summary(model1)
+# choose variables to include in logistic regression model that showed to be predictive of cluster 1 customers based on the discoveries made in part 3 cluster 1 discussion. Also, using logistic regression due to the categorical and continuous variables.
 
 predict_validation<-predict(model1, newdata = valid, type='response')
 
+library(e1071)
 
 ## Categorizing the result based on the cutoff value(0.5)
 resultcheck<-as.factor(ifelse(predict_validation>0.5,1,0))
 confusionMatrix(resultcheck, valid$.data_1)
 
-model2 <- glm(formula = .data_2 ~ affluence+child+cs+edu+feh+hs+sex+ave_price+pur_vol_no_promo+pr_cat_1+pr_cat_2+prop_cat_5, family = binomial, 
-    data = train[, c(-35,-37)])
-summary(model2)
-
-
-## Predicting churn results based on the logistic model
-predict_validation<-predict(model2, newdata = valid, type='response')
-
-
-## Categorizing the result based on the cutoff value(0.5)
-resultcheck<-as.factor(ifelse(predict_validation>0.5,1,0))
-confusionMatrix(resultcheck, valid$.data_2)
-
-model3 <- glm(formula = .data_3 ~ age+child+cs+edu+feh+hs+sec+sex+brand_runs+tot_vol+vol_tran+ave_price+pur_vol_no_promo+pur_vol_promo+pur_vol_diff_promo+pr_cat_1+pr_cat_2+pr_cat_3+pr_cat_4+prop_cat_5+prop_cat_8+prop_cat_10+prop_cat_12+prop_cat_13+prop_cat_14, family = binomial, 
-    data = train[, c(-35,-36)])
-summary(model3)
-
-
-## Predicting churn results based on the logistic model
-predict_validation<-predict(model3, newdata = valid, type='response')
-
-
-## Categorizing the result based on the cutoff value(0.5)
-resultcheck<-as.factor(ifelse(predict_validation>0.5,1,0))
-confusionMatrix(resultcheck, valid$.data_3)
-
+# The model has a specificity of 95%, correctly identifying customers who should be in cluster 1.
 
 ```

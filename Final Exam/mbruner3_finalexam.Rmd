@@ -823,12 +823,12 @@ model1 <- glm(formula = .data_1 ~ edu+feh+hs+sex+sec+cs+age+affluence+pr_cat_3+p
     data = train[, -36:-37])
 # choose variables to include in logistic regression model that showed to be predictive of cluster 1 customers based on the discoveries made in part 3 cluster 1 discussion. Also, using logistic regression due to the categorical and continuous variables.
 
-predict_validation<-predict(model1, newdata = valid, type='response')
+predict_validation<-predict(model1, newdata = valid[, -35:-37], type='response')
 
 library(e1071)
 
 ## Categorizing the result based on the cutoff value(0.5)
-resultcheck<-as.factor(ifelse(predict_validation>0.5,1,0))
+resultcheck<-as.factor(ifelse(predict_validation > 0.5, 1, 0))
 confusionMatrix(resultcheck, valid$.data_1)
 
 # The model has a specificity of 95%, correctly identifying customers who should be in cluster 1.

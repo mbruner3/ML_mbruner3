@@ -658,6 +658,11 @@ soap %>%
   filter(purch_behavior_basis_cl == 1) %>%
   ggplot() +
     geom_histogram(aes(x = affluence), fill = "steelblue")
+soap %>% 
+filter(purch_behavior_basis_cl == 1) %>%
+  group_by(affluence) %>% 
+  select(affluence) %>% 
+  summarise(n = n(), percent = n/49*100)
 
 soap[, c(2:10, 50)] %>% 
   filter(purch_behavior_basis_cl == 1) %>% 
@@ -814,7 +819,7 @@ train <- as.data.frame(soap2[p,])
 valid <- as.data.frame(soap2[-p,])
 
 # Applying logistic regression model 
-model1 <- glm(formula = .data_1 ~ cs+edu+feh+hs+sex+brand_runs+trans_ovr_br+value+ave_price+pr_cat_2+pr_cat_3+prop_cat_5+prop_cat_14+br_max, family = binomial, 
+model1 <- glm(formula = .data_1 ~ edu+feh+hs+sex+sec+cs+age+affluence+pr_cat_3+prop_cat_14, family = binomial, 
     data = train[, -36:-37])
 # choose variables to include in logistic regression model that showed to be predictive of cluster 1 customers based on the discoveries made in part 3 cluster 1 discussion. Also, using logistic regression due to the categorical and continuous variables.
 

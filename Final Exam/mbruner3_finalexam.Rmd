@@ -3,22 +3,25 @@ title: "Final Exam"
 output: html_document
 ---
 
-```{r}
+```{r, echo=FALSE, message=FALSE}
 rm(list=ls())
 ```
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, message=FALSE}
 library(caret)
 library(tidyverse)
+library(dplyr)
 library(ISLR)
 library(factoextra)
 library(corrplot)
 library(fpc)
 ```
 
-```{r}
-# loaded dataset and made the column types appropriate for the data in each column. However, columns 20 to 46 have the "%" symbol and I will remove that symbol and convert them to decimals later.
-soap <- read_csv("BathSoap.csv", col_types = c("ffffffffffdiidid??d???????????????????????????"))
+## Data Cleaning and Wrangling
+
+```{r, }
+# Columns 20 to 46 have the "%" symbol and I will remove that symbol and convert them to decimals later.
+soap <- read_csv("BathSoap.csv", col_types = c("ffffffffffdiidid??d???????????????????????????")) # set column types.
 head(soap)
 ```
 
@@ -77,6 +80,7 @@ colMeans(is.na(soap))
 
 
 ## Exploratory Data Analysis 
+
 ```{r}
 summary(soap)
 
@@ -85,9 +89,9 @@ soap %>%
   filter(feh == 0 & mt == 0 & sex == 0)
 ```
 
-Many of the demographics are not specified across many of the same columns and since k-Means uses continuous variables, they are not important to the algorithm.
+Many of the demographics are not specified across many of the same columns and since k-Means uses continuous variables, they are not important to the clustering algorithm but may need to revisit this after clustering to possibly impute values for these 68  customers.
 
-```{r, warning=FALSE}
+```{r, warning=FALSE, echo=FALSE}
 soap[, 2:10] %>% 
   gather(key = Variable, value = Value) %>% 
   ggplot() +
@@ -136,6 +140,7 @@ All other prop_cat seem to have as much activity as 1, 2, and 5.
 prop_cat_1, 2, & 5 need to look at closer.
 
 ## Outlier Inspection
+
 ```{r}
 soap %>% 
   select(feh, mt, sex, edu, hs, cs, affluence) %>%
@@ -165,8 +170,9 @@ soap %>%
   select(vol_tran, vol_tran_check) # numbers seem fine, only error due to rounding differences. Nothing significant.
 ```
 
-## Variable Correlations
-```{r}
+## Variable Correlations and Relationship Exploration
+
+```{r, echo=FALSE}
 cont <- soap[, 11:46]
 cc <- cor(soap[, 11:46], method = "pearson")
 corrplot(cc, method = "circle", type = "lower")
@@ -219,7 +225,7 @@ soap %>%
 
 **Possible Relationships:**
 
-1. Stronger positive relationships:
+1. **Stronger positive relationships:**
   + Brand runs and number of brands (The higher the brand runs, the higher the number different brands purchased.)
   + number of transactions and brand runs (the higher the brand runs the higher the number of transactions, which means the more transactions the higher the number of different brands, there is a positive correlation between those two as well.)
   + value and total volume (the higher the value the higher the volume, typically the larger weight costs more so that makes sense. Since these are different soap products that would make sense.)
@@ -228,6 +234,11 @@ soap %>%
   + prop_cat_11 and br_481
   + prop_cat_13 and br_24
   + prop_cat_3 and pr_cat_14 (proposition category 3 must sell mostly in the third price category.)
+  
+2. **Stronger negative relationships:**
+  + no promotion and different promotions vs. promotion 6. This makes sense, those who purchase without promotion are making a purchase for a different reason than those who buy during a promotion or purchasing during a different promotion.
+  + price category 3 and average price. The lower the average price the more of price cat 3 products. This means that this category has lower priced products.
+  + proposition category 14 and average price, this category has lower cost product. brand 55 must also be lower cost on average.
 
 ### Exploring Brand Loyalty
 ```{r}
@@ -746,24 +757,57 @@ The customers in this cluster are **premium customers**:
 ## Part 4: Predictive Model
 We need to create a model that will predict if a customer one of the three clusters.
 
-```{r}
-p <- createDataPartition(soap$purch_behavior_basis_cl,p=0.7,list=FALSE)
-
-train <- soap[p,]
-valid <- soap[-p,]
-```
-
 
 ```{r}
 library(fastDummies)
 soap[, 54:57] <- dummy_cols(soap$purch_behavior_basis_cl)
-## Applying logistic regression model 
-lm <- glm.fit(purch_behavior_basis_cl~ .,family=binomial(link="logit"),data=soap[, c(-11:-13,-51,-52)])
-summary(Logistic_Model)
+soap2 <- soap[, c(-1,-11:-13, -27:-35, -44, -46, -50:-54)]
 
-## Predicting churn results based on the logistic model
-predict_validation<-predict(Logistic_Model,newdata = validation_data,type='response')
+soap2$.data_1 <- as.factor(soap2$.data_1)
+soap2$.data_2 <- as.factor(soap2$.data_2)
+soap2$.data_3 <- as.factor(soap2$.data_3)
+p <- createDataPartition(soap2$.data_1,p=0.7,list=FALSE)
+
+train <- as.data.frame(soap2[p,])
+valid <- as.data.frame(soap2[-p,])
+
+## Applying logistic regression model 
+model1 <- glm(formula = .data_1 ~ cs+edu+feh+hs+sex+brand_runs+trans_ovr_br++value+ave_price+pr_cat_2+pr_cat_3+prop_cat_5+prop_cat_14+br_max, family = binomial, 
+    data = train[, -36:-37])
+summary(model1)
+
+predict_validation<-predict(model1, newdata = valid, type='response')
+
 
 ## Categorizing the result based on the cutoff value(0.5)
-resultcheck<-ifelse(predict_validation>0.5,1,0)
+resultcheck<-as.factor(ifelse(predict_validation>0.5,1,0))
+confusionMatrix(resultcheck, valid$.data_1)
+
+model2 <- glm(formula = .data_2 ~ affluence+child+cs+edu+feh+hs+sex+ave_price+pur_vol_no_promo+pr_cat_1+pr_cat_2+prop_cat_5, family = binomial, 
+    data = train[, c(-35,-37)])
+summary(model2)
+
+
+## Predicting churn results based on the logistic model
+predict_validation<-predict(model2, newdata = valid, type='response')
+
+
+## Categorizing the result based on the cutoff value(0.5)
+resultcheck<-as.factor(ifelse(predict_validation>0.5,1,0))
+confusionMatrix(resultcheck, valid$.data_2)
+
+model3 <- glm(formula = .data_3 ~ age+child+cs+edu+feh+hs+sec+sex+brand_runs+tot_vol+vol_tran+ave_price+pur_vol_no_promo+pur_vol_promo+pur_vol_diff_promo+pr_cat_1+pr_cat_2+pr_cat_3+pr_cat_4+prop_cat_5+prop_cat_8+prop_cat_10+prop_cat_12+prop_cat_13+prop_cat_14, family = binomial, 
+    data = train[, c(-35,-36)])
+summary(model3)
+
+
+## Predicting churn results based on the logistic model
+predict_validation<-predict(model3, newdata = valid, type='response')
+
+
+## Categorizing the result based on the cutoff value(0.5)
+resultcheck<-as.factor(ifelse(predict_validation>0.5,1,0))
+confusionMatrix(resultcheck, valid$.data_3)
+
+
 ```
